@@ -11,8 +11,9 @@
 // Each HotModule owns one HotTrampolineTable, so two loader instances share
 // the framework code but never collide: same symbol name in two apps resolves
 // through two different tables. On reload the new dylib's address is stored
-// into ptr while fallback_ptr keeps the prior generation alive, so in-flight
-// calls landing mid-swap never jump to NULL.
+// into ptr while fallback_ptr records a prior address; it does NOT keep code
+// alive. Caller exclusion/lifetime retention is mandatory. Cold swaps clear
+// fallbacks before resuming after retiring the old images.
 
 typedef struct HotTrampoline {
     _Atomic(void*) ptr;             // current generation target
@@ -20,12 +21,26 @@ typedef struct HotTrampoline {
     char name[HOT_MANIFEST_MAX_NAME]; // export symbol name
 } HotTrampoline;
 
-#define HOT_MAX_TRAMPOLINES 1024
+// Initial allocation only, not a rejection ceiling. Growth/registration/free
+// require caller exclusion of all table readers; atomic target loads/stores do
+// not make backing relocation concurrent-safe. Indices, not row pointers, escape.
+#define HOT_TRAMPOLINE_CAPACITY_DEFAULT 16u
 
 typedef struct HotTrampolineTable {
-    HotTrampoline rows[HOT_MAX_TRAMPOLINES]; // one row per export
+    HotTrampoline *rows;                     // cold-growable symbol backing
+    uint32_t capacity;                       // allocated rows
     _Atomic uint32_t count;                  // used rows (cross-thread readers)
+    uint64_t refusals;                       // allocation/extent refusals this epoch
 } HotTrampolineTable;
+
+HotTrampolineTable HotTrampolineTable_0(void);
+#define HotTrampolineTable() HotTrampolineTable_0()
+#define HotTrampolineTable_zero() HotTrampolineTable_0()
+bool HotTrampolineTable_reserve(HotTrampolineTable *self, uint32_t capacity);
+void HotTrampolineTable_free(HotTrampolineTable *self);
+uint64_t HotTrampolineTable_exhaustionCount(const HotTrampolineTable *self);
+bool HotTrampolineTable_toString(const HotTrampolineTable *self, char *dest, size_t cap, bool *outTruncated);
+bool HotTrampolineTable_toStringStruct(const HotTrampolineTable *self, char *dest, size_t cap, bool *outTruncated);
 
 // Register a row for a function. Returns the row index.
 int HotTrampolineTable_register(HotTrampolineTable *self, const char *name);
