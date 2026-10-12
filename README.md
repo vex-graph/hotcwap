@@ -16,6 +16,15 @@ runtime with a working macOS backend, not a finished multi-platform host.
   (loader, kernel, window families), but most rows are still **unrecorded** — a
   green `b build` plus the presence of owner tests is not the same as recorded
   per-file evidence.
+- **Explicit cold update slice:** `Hot_updateCold` accepts a complete flat library
+  plus trusted SHA256 references, enforces the mounted catalog at load admission,
+  checks all private images before loading, validates `Hot_cold_abi`, saves
+  synchronously and restores into candidate images before publishing targets.
+  Detected rejection reverts disk current/generation and retains running state;
+  unresolved rollback requires host recovery. Dispatch rows grow cold and reuse
+  symbol identities; there is no arbitrary update-count ceiling. Owner runner:
+  `python3 tests/hotcwap/hot/cold_update_test.py` (real two-section repeated swaps).
+  Caller exclusion is mandatory, not a new concurrent loader/lifetime guarantee.
 - **Draft / unproven:** the Linux X11, Wayland and Win32 window backends
   (`window_linux.c`, `window_wayland.c`, `window_win32.c`) are drafts that need
   their own host to compile and are explicitly unproven on macOS. Live Hot-loader
@@ -109,6 +118,15 @@ configuration is not a standalone runtime build.
 * The workspace build system, `b` (bundled at `../../../personal/b`).
 
 ## Scope and Limitations
+
+Cold updates are trusted/stable-tree, caller-excluded transactions, not a
+downloader, signature verifier, hostile-directory sandbox or power-loss journal.
+They retain every declared section/export and use the existing 4 KiB snapshot
+slots. Module save/restore/constructors must obey the trusted candidate-only
+contract. Legacy `Hot_poll`/global promotion retains its separate poll-aged
+retirement limitations and is not upgraded to cold safety by this API.
+ASan/UBSan host and UBSan module proof does not establish Apple fully-ASan dylib
+unload/reload, zero leaks, complete failure injection or other-platform support.
 
 hotcwap is the R1 layer only. It deliberately does not do the following:
 
