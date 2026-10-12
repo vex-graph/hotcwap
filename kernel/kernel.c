@@ -219,6 +219,7 @@ Kernel *Kernel_2(size_t arenaBytes, size_t transientBytes) {
     (*self).applicationCount = 0;
     (*self).processCount = 0;
     (*self).consoleCount = 0;
+    (*self).commandlineCount = 0;
     (*self).runSlots = nullptr;
     (*self).runCount = 0;
     (*self).runCap = 0;
@@ -249,10 +250,12 @@ bool Kernel_free(Kernel *self) {
         fprintf(stderr, "kernel: refusing free while a run is live or draining — stop and let it quiesce first\n");
         return false;
     }
-    if ((*self).applicationCount > 0 || (*self).processCount > 0 || (*self).consoleCount > 0) {
+    if ((*self).applicationCount > 0 || (*self).processCount > 0 || (*self).consoleCount > 0
+        || (*self).commandlineCount > 0) {
         fprintf(stderr,
-                "kernel: %u app(s), %u process(es), %u console(s) still registered; remove before free\n",
-                (*self).applicationCount, (*self).processCount, (*self).consoleCount);
+                "kernel: %u app(s), %u process(es), %u console(s), %u commandline(s) still registered; remove before free\n",
+                (*self).applicationCount, (*self).processCount, (*self).consoleCount,
+                (*self).commandlineCount);
         return false;
     }
     // Fire end hooks BEFORE joining? No — AFTER: hooks release resources the
@@ -299,6 +302,9 @@ bool Kernel_free(Kernel *self) {
     for (uint32_t i = 0; i < KERNEL_MAX_CONSOLES; i++)
         (*self).consoles[i] = nullptr;
     (*self).consoleCount = 0;
+    for (uint32_t i = 0; i < KERNEL_MAX_COMMANDLINES; i++)
+        (*self).commandlines[i] = nullptr;
+    (*self).commandlineCount = 0;
 
     (*self).transientArena = nullptr;
     (*self).transientArenaType = 0;
@@ -338,6 +344,11 @@ void Kernel_stop(Kernel *self) {
             Console *c = (*self).consoles[i];
             if (c)
                 Console_cancel(c);
+        }
+        for (uint32_t i = 0; i < (*self).commandlineCount; i++) {
+            CommandLine *cl = (*self).commandlines[i];
+            if (cl)
+                CommandLine_stop(cl);
         }
         return;
     }
@@ -449,6 +460,17 @@ static bool kernelAddConsoleInternal(Kernel *self, Console *c) {
     return true;
 }
 
+/** Adds a terminal application to the registry if unique and within capacity. */
+static bool kernelAddCommandLineInternal(Kernel *self, CommandLine *c) {
+    for (uint32_t i = 0; i < (*self).commandlineCount; i++)
+        if ((*self).commandlines[i] == c)
+            return false;
+    if ((*self).commandlineCount >= KERNEL_MAX_COMMANDLINES)
+        return false;
+    (*self).commandlines[(*self).commandlineCount++] = c;
+    return true;
+}
+
 // Post a pending add from ANY thread (mutex-guarded, growable realloc — cold
 // path, never steady-state). The drain on Thread 0 steals the whole batch in
 // one lock and re-owns the arrays for the rest of the pass.
@@ -498,6 +520,12 @@ static void kernelApplyDeferred(Kernel *self, KernelDeferredKind kind, void *ptr
             Console *c = (Console*) ptr;
             if (kernelAddConsoleInternal(self, c))
                 (void) Console_run(c);
+            break;
+        }
+        case KERNEL_DEFERRED_COMMANDLINE: {
+            CommandLine *cl = (CommandLine*) ptr;
+            if (kernelAddCommandLineInternal(self, cl) && !CommandLine_isOpen(cl))
+                (void) CommandLine_open(cl);
             break;
         }
         case KERNEL_DEFERRED_NONE:
@@ -561,6 +589,11 @@ static bool kernelAllDone(const Kernel *self) {
         if (c && Console_isRunning(c))
             return false;
     }
+    for (uint32_t i = 0; i < (*self).commandlineCount; i++) {
+        CommandLine *cl = (*self).commandlines[i];
+        if (cl && CommandLine_isOpen(cl) && !CommandLine_isCancelled(cl))
+            return false;
+    }
     for (uint32_t i = 0; i < (*self).runCount; i++) {
         const KernelRunSlot *slot = &(*self).runSlots[i];
         if (!atomic_load_explicit(&(*slot).done, memory_order_relaxed))
@@ -599,7 +632,8 @@ static void kernelStartApplication(Kernel *self, Application *a) {
 int Kernel_runAll(Kernel *self) {
     if (!self)
         return KERNEL_EXIT_NO_APPS;
-    if ((*self).applicationCount == 0 && (*self).processCount == 0 && (*self).consoleCount == 0 && (*self).runCount == 0)
+    if ((*self).applicationCount == 0 && (*self).processCount == 0 && (*self).consoleCount == 0
+        && (*self).commandlineCount == 0 && (*self).runCount == 0)
         return KERNEL_EXIT_NO_APPS;
 
     // TERMINAL-RUN ARM: claim the run (READY -> RUNNING). From here the
@@ -647,6 +681,12 @@ int Kernel_runAll(Kernel *self) {
         if (c)
             (void) Console_run(c);
     }
+    // Terminal applications: acquire the device, then drive it each pass below.
+    for (uint32_t i = 0; i < (*self).commandlineCount; i++) {
+        CommandLine *cl = (*self).commandlines[i];
+        if (cl && !CommandLine_isOpen(cl))
+            (void) CommandLine_open(cl);
+    }
     for (uint32_t i = 0; i < (*self).applicationCount; i++)
         kernelStartApplication(self, (*self).applications[i]);
 
@@ -674,6 +714,12 @@ int Kernel_runAll(Kernel *self) {
             size_t n = 0;
             if (Console_poll(c, buf, sizeof(buf), &n) && n > 0)
                 (void) fwrite(buf, 1, n, stdout);
+        }
+        // Terminal applications: one non-blocking draw/resize/input pass each.
+        for (uint32_t i = 0; i < (*self).commandlineCount; i++) {
+            CommandLine *cl = (*self).commandlines[i];
+            if (cl && CommandLine_isOpen(cl) && CommandLine_hasApp(cl) && !CommandLine_isCancelled(cl))
+                (void) CommandLine_tick(cl);
         }
 
         if ((pass % 50) == 0) {
@@ -704,6 +750,11 @@ int Kernel_runAll(Kernel *self) {
         if (a && Application_isRunning(a))
             Application_stop(a);
         Application_finish(a);
+    }
+    for (uint32_t i = 0; i < (*self).commandlineCount; i++) {
+        CommandLine *cl = (*self).commandlines[i];
+        if (cl)
+            CommandLine_close(cl);   // restore the terminal before any join (the Teardown Order Law)
     }
     for (uint32_t i = 0; i < (*self).runCount; i++) {
         KernelRunSlot *slot = &(*self).runSlots[i];
@@ -737,6 +788,19 @@ int Kernel_runProcess(Kernel *self, Process *p) {
 bool Kernel_runConsole(Kernel *self, Console *c) {
     (void) self;
     return c ? Console_run(c) : false;
+}
+
+// Blocking terminal-application entry: attaches nothing, just runs the registered
+// CommandLine loop to completion on the calling thread. The 1-arity Kernel_run
+// reactor drives the same CommandLine with CommandLine_tick instead.
+/** Runs one CommandLine terminal-application loop; returns its exit code. */
+int Kernel_runCommandLine(Kernel *self, CommandLine *c) {
+    (void) self;
+    if (!c)
+        return KERNEL_EXIT_NO_APPS;
+    if (!CommandLine_isOpen(c) && !CommandLine_open(c))
+        return KERNEL_EXIT_PROCESS_FAILED;
+    return CommandLine_run(c);
 }
 
 // The GfxLoop runner seat (the Vertical Integration Law: R1 owns fn-tables,
@@ -894,6 +958,39 @@ bool Kernel_removeConsole(Kernel *self, Console *c) {
         if ((*self).consoles[i] == c) {
             (*self).consoles[i] = (*self).consoles[--(*self).consoleCount];
             (*self).consoles[(*self).consoleCount] = nullptr;
+            return true;
+        }
+    }
+    return false;
+}
+
+// --- COMMANDLINE REGISTRY ---
+/** Registers now or defers the terminal-application add to the active run thread. */
+bool Kernel_addCommandLine(Kernel *self, CommandLine *c) {
+    if (!self || !c)
+        return false;
+    if (kernelDraining(self)) {
+        fprintf(stderr, "kernel: Kernel_addCommandLine refused while draining\n");
+        return false;
+    }
+    if (kernelRunActive(self)) {
+        if ((uintptr_t) pthread_self() == atomic_load_explicit(&(*self).runThreadId, memory_order_relaxed)) {
+            fprintf(stderr, "kernel: Kernel_addCommandLine refused on the arming thread while Kernel_run is live — register before Kernel_run(), or post from another thread\n");
+            return false;
+        }
+        return kernelPostDeferred(self, KERNEL_DEFERRED_COMMANDLINE, c);
+    }
+    return kernelAddCommandLineInternal(self, c);
+}
+
+/** Removes a registered terminal application without destroying it. */
+bool Kernel_removeCommandLine(Kernel *self, CommandLine *c) {
+    if (!self || !c)
+        return false;
+    for (uint32_t i = 0; i < (*self).commandlineCount; i++) {
+        if ((*self).commandlines[i] == c) {
+            (*self).commandlines[i] = (*self).commandlines[--(*self).commandlineCount];
+            (*self).commandlines[(*self).commandlineCount] = nullptr;
             return true;
         }
     }
@@ -1067,6 +1164,36 @@ uint32_t Kernel_getConsoles(const Kernel *self, Console **out, uint32_t cap) {
     if (n > cap) n = cap;
     for (uint32_t i = 0; i < n; i++)
         out[i] = (*self).consoles[i];
+    return n;
+}
+
+;;GETTER
+/** Returns the CommandLine handle at index, or nullptr if absent/out of range. */
+CommandLine *Kernel_getCommandLine(const Kernel *self, uint32_t index) {
+    if (!self)
+        return nullptr;
+    if (index >= (*self).commandlineCount)
+        return nullptr;
+    return (*self).commandlines[index];
+}
+
+;;GETTER
+/** Returns the number of registered terminal applications. */
+uint32_t Kernel_getCommandLineCount(const Kernel *self) {
+    if (!self)
+        return 0;
+    return (*self).commandlineCount;
+}
+
+;;GETTER
+/** Copies up to cap CommandLine handles to out and returns the number copied. */
+uint32_t Kernel_getCommandLines(const Kernel *self, CommandLine **out, uint32_t cap) {
+    if (!self || !out || cap == 0)
+        return 0;
+    uint32_t n = (*self).commandlineCount;
+    if (n > cap) n = cap;
+    for (uint32_t i = 0; i < n; i++)
+        out[i] = (*self).commandlines[i];
     return n;
 }
 

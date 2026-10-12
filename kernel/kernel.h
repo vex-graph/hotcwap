@@ -11,18 +11,19 @@
 #include "application.h"
 #include "console.h"
 #include "process.h"
+#include "commandline.h"
 
 // kernel/kernel.h — R1 Host Supervisor: storage + dispatch, never an executor.
 //
 // The Kernel is an object that STORES registries and SENDS work. It holds the
-// master arena, the transient scratch arena, and the three per-kind registries
-// (processes / applications / consoles). It owns NO loop, NO tick, and NO
-// worker thread — Kernel_run is a thin reference
+// master arena, the transient scratch arena, and the four per-kind registries
+// (processes / applications / consoles / commandlines). It owns NO loop, NO tick,
+// and NO worker thread — Kernel_run is a thin reference
 // forward that hands each registered kind to its own run function:
 // Process_run() for one-shot invokables, Console_run() for session pumps,
-// and graphvex's GfxLoop registration for windowed Applications. The Kernel
-// never implements the work itself, so hot-reloading a module swaps the
-// running code without touching the supervisor.
+// CommandLine for terminal applications, and graphvex's GfxLoop registration
+// for windowed Applications. The Kernel never implements the work itself, so
+// hot-reloading a module swaps the running code without touching the supervisor.
 //
 // The frame loop, event pump (Thread 0), presentation, and per-frame handler
 // invocation live in graphvex's GfxLoop (the Vertical Integration Law / the Window Decoupling Law); the Kernel
@@ -60,6 +61,7 @@
 #define KERNEL_MAX_APPS     8
 #define KERNEL_MAX_PROCS    8
 #define KERNEL_MAX_CONSOLES 8
+#define KERNEL_MAX_COMMANDLINES 8
 #define KERNEL_ARENA_DEFAULT (64 * 1024 * 1024)
 #define KERNEL_TRANSIENT_DEFAULT (64 * 1024 * 1024)
 
@@ -95,6 +97,7 @@ typedef enum KernelDeferredKind {
     KERNEL_DEFERRED_APPLICATION,
     KERNEL_DEFERRED_PROCESS,
     KERNEL_DEFERRED_CONSOLE,
+    KERNEL_DEFERRED_COMMANDLINE,
 } KernelDeferredKind;
 
 typedef struct KernelDeferred {
@@ -139,6 +142,8 @@ struct Kernel {
     uint32_t processCount;                       // used slots in processes[]
     Console     *consoles[KERNEL_MAX_CONSOLES];  // session pumps
     uint32_t consoleCount;                       // used slots in consoles[]
+    CommandLine *commandlines[KERNEL_MAX_COMMANDLINES]; // terminal applications
+    uint32_t commandlineCount;                          // used slots in commandlines[]
 
     // --- Dynamic run-function and end-function registries ---
     KernelRunSlot *runSlots;                     // growable supervised run worker slots
@@ -247,6 +252,8 @@ int  Kernel_runAll(Kernel *self);
 int  Kernel_runProcess(Kernel *self, Process *p);
 bool Kernel_runConsole(Kernel *self, Console *c);
 int  Kernel_runApplication(Kernel *self, Application *a);
+// Blocking terminal-application loop for one CommandLine (the 2-arity form).
+int  Kernel_runCommandLine(Kernel *self, CommandLine *c);
 
 #define KERNEL_RUN_CHOOSER(_0, _1, _2, NAME, ...) NAME
 
@@ -254,7 +261,8 @@ int  Kernel_runApplication(Kernel *self, Application *a);
     _Generic((kind),                                       \
         Process     *: Kernel_runProcess,                  \
         Console     *: Kernel_runConsole,                  \
-        Application *: Kernel_runApplication               \
+        Application *: Kernel_runApplication,              \
+        CommandLine *: Kernel_runCommandLine               \
     )(self, kind)
 
 #define Kernel_run(...) KERNEL_RUN_CHOOSER( \
@@ -295,6 +303,13 @@ bool    Kernel_removeConsole(Kernel *self, Console *c);
 Console *Kernel_getConsole(const Kernel *self, uint32_t index);
 uint32_t Kernel_getConsoleCount(const Kernel *self);
 uint32_t Kernel_getConsoles(const Kernel *self, Console **out, uint32_t cap);
+
+// --- CommandLine registry (terminal applications) ---
+bool         Kernel_addCommandLine(Kernel *self, CommandLine *c);
+bool         Kernel_removeCommandLine(Kernel *self, CommandLine *c);
+CommandLine *Kernel_getCommandLine(const Kernel *self, uint32_t index);
+uint32_t     Kernel_getCommandLineCount(const Kernel *self);
+uint32_t     Kernel_getCommandLines(const Kernel *self, CommandLine **out, uint32_t cap);
 
 // --- Run functions (async background execution) & End functions (lifecycle completion) ---
 bool     Kernel_addRunFunction(Kernel *self, KernelRunFn fn, void *userdata);
