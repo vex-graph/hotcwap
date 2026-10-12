@@ -125,6 +125,27 @@ Live reloading without ABI validation causes memory misalignment and crashes whe
 
 ## 3. Repo-Local Extensions (managed, per the Conflict Triage Law)
 
+### Explicit Cold Update Boundary
+
+`Hot_updateCold` requires caller-owned stop-the-world exclusion of all module
+callers/callbacks and drained work. Its complete flat section set is bounded by
+the existing module/snapshot ABI; trusted SHA256 references are supplied outside
+model output. All private load copies verify before any constructor runs.
+`Hot_cold_abi` gates export compatibility after trusted loading; checksums alone
+are not ABI/schema proof. Save must be observational; restore/migrate mutate
+candidate state only. Rejection retains live code/state and reverts current disk
+generation; unresolved rollback blocks resumption and requires host recovery.
+No crash journal, signatures, hostile-parent sandbox or arbitrary native-code
+rollback is offered. Legacy automatic poll semantics remain distinct.
+
+Trampoline rows grow on cold registration under reader exclusion, preserving
+indices and reusing exact symbol identities. Atomics publish targets, not backing
+relocation or image lifetime. Geometry/count/owned backing change only through
+register/reserve/free, a scoped managed accessor exception under the Conflict
+Triage Law and Single Class Per File Law (Java Law). Refusals count per epoch;
+the first allocation/extent refusal reports its request/bound. Cold swaps forbid
+section/export removal and clear old fallbacks after quiescent retirement.
+
 ;;INTENTION("R1 Kernel Host: native AppKit/Metal bridge; one seam canvas (single on-screen CAMetalLayer) hosting all Vulkan boards; dynamic dylib hotloading.")
 
 ---
