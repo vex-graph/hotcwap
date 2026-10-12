@@ -387,6 +387,7 @@ typedef struct WindowSlot {
 static WindowSlot *s_refs = nullptr;
 static uint32_t s_refCap = 0;
 
+// Grow the NSWindow-to-handle registry geometrically and initialize new slots.
 static bool windowRefsGrow(void) {
     uint32_t nextCap = (s_refCap == 0) ? 8u : s_refCap * 2u;
     WindowSlot *grown = (WindowSlot*) realloc(s_refs, (size_t) nextCap * sizeof(WindowSlot));
@@ -424,6 +425,7 @@ static uint32_t windowIdAcquire(NSWindow *window, Window *handle) {
     return FOCUS_BROADCAST;
 }
 
+// Clear the registry slot after native delegates and input routes are detached.
 static void windowIdRelease(uint32_t id) {
     if (id != FOCUS_BROADCAST && id < s_refCap) {
         s_refs[id].window = nil;
@@ -470,10 +472,12 @@ static CGFloat windowBackingScale(const Window *window);
 @end
 
 @implementation WindowContentView
+/** Keep AppKit view coordinates in the engine's top-left origin convention. */
 - (BOOL)isFlipped {
     return YES;
 }
 
+/** Publish each content-size step and invoke the resize render hook in the tracking turn. */
 - (void)setFrameSize:(NSSize)newSize {
     [super setFrameSize:newSize];
     Window *w = windowHandleOf([self window]);
@@ -504,6 +508,7 @@ static CGFloat windowBackingScale(const Window *window);
     }
 }
 
+/** Mark the window as resizing before AppKit begins its live-resize callbacks. */
 - (void)viewWillStartLiveResize {
     Window *w = windowHandleOf([self window]);
     if (w)
@@ -511,6 +516,7 @@ static CGFloat windowBackingScale(const Window *window);
     [super viewWillStartLiveResize];
 }
 
+/** Clear live-resize state and reconcile the final size and render hook. */
 - (void)viewDidEndLiveResize {
     Window *w = windowHandleOf([self window]);
     if (w) {
@@ -531,6 +537,7 @@ static CGFloat windowBackingScale(const Window *window);
 @end
 
 @implementation WindowAppDelegate
+/** Allow the process to terminate after its final native window closes. */
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication*) sender {
     (void) sender;
     return YES;
@@ -546,6 +553,7 @@ static CGFloat windowBackingScale(const Window *window);
 @end
 
 @implementation WindowDelegate
+/** Ask lifecycle listeners whether AppKit should accept the close request. */
 - (BOOL)windowShouldClose:(NSWindow*) sender {
     (void) sender;
     Window *w = self.handlePtr;
@@ -554,12 +562,14 @@ static CGFloat windowBackingScale(const Window *window);
     return YES;
 }
 
+/** Set the C close latch when AppKit reports that the native window closed. */
 - (void)windowWillClose:(NSNotification*) notification {
     (void) notification;
     if (self.shouldClosePtr)
         atomic_store_explicit(self.shouldClosePtr, true, memory_order_relaxed);
 }
 
+/** Revalidate physical size and monitor state after the window changes screens. */
 - (void)windowDidChangeScreen:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -567,6 +577,7 @@ static CGFloat windowBackingScale(const Window *window);
         Window_revalidate(w);
 }
 
+/** Revalidate pixel geometry after AppKit changes backing scale properties. */
 - (void)windowDidChangeBackingProperties:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -574,6 +585,7 @@ static CGFloat windowBackingScale(const Window *window);
         Window_revalidate(w);
 }
 
+/** Refresh cached size and origin after AppKit completes a resize notification. */
 - (void)windowDidResize:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -585,6 +597,7 @@ static CGFloat windowBackingScale(const Window *window);
     }
 }
 
+/** Refresh the cached screen origin after AppKit moves the window. */
 - (void)windowDidMove:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -594,6 +607,7 @@ static CGFloat windowBackingScale(const Window *window);
         windowRefreshOrigin(w);
 }
 
+/** Mark fullscreen transition work as live resizing before AppKit animates. */
 - (void)windowWillEnterFullScreen:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -601,6 +615,7 @@ static CGFloat windowBackingScale(const Window *window);
         atomic_store_explicit(&(*w).liveResizing, true, memory_order_relaxed);
 }
 
+/** Publish final fullscreen geometry and notify lifecycle listeners. */
 - (void)windowDidEnterFullScreen:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -612,6 +627,7 @@ static CGFloat windowBackingScale(const Window *window);
     }
 }
 
+/** Mark fullscreen exit as live resizing until AppKit completes the transition. */
 - (void)windowWillExitFullScreen:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -619,6 +635,7 @@ static CGFloat windowBackingScale(const Window *window);
         atomic_store_explicit(&(*w).liveResizing, true, memory_order_relaxed);
 }
 
+/** Reconcile restored geometry, render once after transition, and notify listeners. */
 - (void)windowDidExitFullScreen:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -634,6 +651,7 @@ static CGFloat windowBackingScale(const Window *window);
     }
 }
 
+/** Mark the native minimize animation so resize rendering can be suppressed. */
 - (void)windowWillMiniaturize:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -641,6 +659,7 @@ static CGFloat windowBackingScale(const Window *window);
         atomic_store_explicit(&(*w).miniaturizing, true, memory_order_relaxed);
 }
 
+/** Clear transition state and publish the minimized lifecycle event. */
 - (void)windowDidMiniaturize:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -650,6 +669,7 @@ static CGFloat windowBackingScale(const Window *window);
     }
 }
 
+/** Mark the restore animation so intermediate geometry is not rendered. */
 - (void)windowWillDeminiaturize:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -657,6 +677,7 @@ static CGFloat windowBackingScale(const Window *window);
         atomic_store_explicit(&(*w).miniaturizing, true, memory_order_relaxed);
 }
 
+/** Clear transition state, refresh size, and publish restoration. */
 - (void)windowDidDeminiaturize:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -669,6 +690,7 @@ static CGFloat windowBackingScale(const Window *window);
 
 // Zoom-to-fill (green button / double-click titlebar): publish the lifecycle
 // event before AppKit performs the standard-frame change.
+/** Publish the zoom-fill lifecycle event before AppKit applies the target frame. */
 - (BOOL)windowShouldZoom:(NSWindow*) sender toFrame:(NSRect)newFrame {
     (void) sender;
     (void) newFrame;
@@ -682,6 +704,7 @@ static CGFloat windowBackingScale(const Window *window);
 // out): publish the lifecycle event with current visibility. An ordered-out
 // window reads zero state bits, so it reports not-visible and the renderer
 // rests. The notification itself is the flip signal — no extra cache.
+/** Publish whether the native window is currently visible to the user. */
 - (void)windowDidChangeOcclusionState:(NSNotification*) notification {
     (void) notification;
     Window *w = self.handlePtr;
@@ -808,6 +831,7 @@ static uint32_t resolveMonitorId(Window *window) {
     }
 }
 
+// Resolve and publish the screen identity currently carrying this window.
 static void windowRefreshMonitor(Window *window) {
     if (window == nullptr)
         return;
@@ -1051,6 +1075,7 @@ static NSWindow *sLastWindow = nil;
 static NSWindow *sPendingKeyWindow = nil;
 static WindowAppDelegate *sAppDelegate = nil; // one app delegate for the whole process
 
+// Drain AppKit events non-blockingly, optionally stopping after one event.
 static bool windowPollEvents(bool singleStep) {
     bool more = false;
     @autoreleasepool {
@@ -1107,14 +1132,17 @@ static bool windowPollEvents(bool singleStep) {
     return more;
 }
 
+// Drain the process-wide AppKit queue and refresh registered window state.
 void Window_pollEvents(void) {
     (void) windowPollEvents(false);
 }
 
+// Dispatch at most one AppKit event and report whether another remains queued.
 bool Window_pollEventStep(void) {
     return windowPollEvents(true);
 }
 
+// Wait for one process-wide AppKit event for the requested bounded interval.
 void Window_waitEvents(Window *window, int timeoutMs) {
     (void) window;   // the AppKit event pump is process-wide
     @autoreleasepool {
@@ -1143,6 +1171,7 @@ void Window_waitEvents(Window *window, int timeoutMs) {
 @end
 
 @implementation VexWindow
+/** Respect the C key-focus gate before allowing AppKit key-window eligibility. */
 - (BOOL)canBecomeKeyWindow {
     Window *h = self.vexHandle;
     if (h != nullptr && !atomic_load_explicit(&(*h).keyEnabled, memory_order_relaxed))
@@ -1171,6 +1200,7 @@ void Window_waitEvents(Window *window, int timeoutMs) {
 // (normal cursor) maximizes.
 static const CGFloat kWindowResizeBorderPoints = 6.0;
 
+/** Route titlebar double-click gestures before ordinary AppKit event delivery. */
 - (void)sendEvent:(NSEvent *)event {
     if (event.type == NSEventTypeLeftMouseDown && event.clickCount == 2) {
         NSPoint p = [event locationInWindow];
@@ -1349,18 +1379,22 @@ static WindowDesc descResolve(const WindowDesc *desc) {
 
 // --- Constructors -----------------------------------------------------------
 
+// Construct a default AppKit window through the common descriptor path.
 Window *Window_0(void) {
     return Window_new(nullptr);
 }
 
+// Construct a window descriptor with the requested title and default dimensions.
 Window *Window_1(const char *title) {
     return Window_new(&(WindowDesc){ .title = title });
 }
 
+// Construct a window descriptor with a title and explicit content dimensions.
 Window *Window_3(const char *title, int width, int height) {
     return Window_new(&(WindowDesc){ .title = title, .width = width, .height = height });
 }
 
+// Resolve descriptor defaults, allocate the AppKit window, and show on request.
 Window *Window_new(const WindowDesc *desc) {
     WindowDesc d = descResolve(desc);
     Window *w = windowAlloc(&d);
@@ -1375,6 +1409,7 @@ Window *Window_new(const WindowDesc *desc) {
     return w;
 }
 
+// Preserve the legacy constructor spelling by forwarding to Window_new.
 Window *Window_create(const char *title, int width, int height) {
     return Window_new(&(WindowDesc){ .title = title, .width = width, .height = height });
 }
@@ -1399,6 +1434,7 @@ void Window_destroy(Window *window) {
     free(window);
 }
 
+// Destroy each registered window while its delegate and handle are still valid.
 void Window_destroyAll(void) {
     if (s_refs == nullptr || s_refCap == 0)
         return;
@@ -1410,15 +1446,18 @@ void Window_destroyAll(void) {
     }
 }
 
+// Read the close latch, treating a missing window as already closed.
 bool Window_shouldClose(Window *window) {
     return window ? atomic_load_explicit(&(*window).shouldClose, memory_order_relaxed) : true;
 }
 
+// Set the close latch observed by the host lifecycle loop.
 void Window_setShouldClose(Window *window, bool shouldClose) {
     if (window != nullptr)
         atomic_store_explicit(&(*window).shouldClose, shouldClose, memory_order_relaxed);
 }
 
+// Ask AppKit to close the native window and set the C-side close latch.
 void Window_close(Window *window) {
     if (!window) return;
     @autoreleasepool { [(*window).nsWindow close]; }
@@ -1435,12 +1474,14 @@ void Window_setPresentMode(Window *window, int mode) {
         atomic_fetch_add_explicit(&(*window).renderGeneration, 1, memory_order_release);
 }
 
+// Read the stored present policy, defaulting to FIFO for a null handle.
 int Window_getPresentMode(const Window *window) {
     if (window == nullptr)
         return WINDOW_PRESENT_FIFO;
     return atomic_load_explicit(&(*window).presentMode, memory_order_relaxed);
 }
 
+// Update the stored transparency policy and advance the render generation on change.
 void Window_setTransparent(Window *window, bool transparent) {
     if (window == nullptr)
         return;
@@ -1449,10 +1490,12 @@ void Window_setTransparent(Window *window, bool transparent) {
         atomic_fetch_add_explicit(&(*window).renderGeneration, 1, memory_order_release);
 }
 
+// Read the stored transparency policy, returning false for a null handle.
 bool Window_isTransparent(const Window *window) {
     return window ? atomic_load_explicit(&(*window).transparent, memory_order_relaxed) : false;
 }
 
+// Read the policy generation used by downstream render-resource rebuilds.
 uint64_t Window_renderGeneration(const Window *window) {
     return window ? atomic_load_explicit(&(*window).renderGeneration, memory_order_acquire) : 0;
 }
@@ -1464,21 +1507,25 @@ void Window_orderLayers(Window *window) {
     (void) window;
 }
 
+// Retain the retired lower-layer setter as an inert compatibility seam.
 void Window_setBottomLayer(Window *window, void *layer) {
     (void) window;
     (void) layer;
 }
 
+// Return no layer because the lean window no longer owns graphics layers.
 void *Window_getBottomLayer(const Window *window) {
     (void) window;
     return nullptr;
 }
 
+// Retain the retired upper-layer setter as an inert compatibility seam.
 void Window_setTopLayer(Window *window, void *layer) {
     (void) window;
     (void) layer;
 }
 
+// Return no layer because the lean window no longer owns graphics layers.
 void *Window_getTopLayer(const Window *window) {
     (void) window;
     return nullptr;
@@ -1493,6 +1540,7 @@ bool Window_attachPanes(Window *window, Panel *panel, int width, int height) {
     return false;
 }
 
+// Retain the retired pane API as an inert failure on the lean window backend.
 bool Window_resizePanes(Window *window, Panel *panel, int width, int height) {
     (void) window;
     (void) panel;
@@ -1501,11 +1549,13 @@ bool Window_resizePanes(Window *window, Panel *panel, int width, int height) {
     return false;
 }
 
+// Keep the retired pane-compositor entry point linkable without rendering.
 void Window_compositePanes(Window *window, Panel *contentPanel) {
     (void) window;
     (void) contentPanel;
 }
 
+// Keep the retired board-compositor entry point linkable without rendering.
 void Window_compositeBoards(Window *window) {
     (void) window;
 }
@@ -1518,10 +1568,12 @@ void Window_setEnabled(Window *window, bool enabled) {
     atomic_store_explicit(&(*window).enabled, enabled, memory_order_relaxed);
 }
 
+// Read whether OS input forwarding is enabled for this window.
 bool Window_isEnabled(const Window *window) {
     return window ? atomic_load_explicit(&(*window).enabled, memory_order_relaxed) : false;
 }
 
+// Read live-resize state, including the file-local diagnostic override seam.
 bool Window_isLiveResizing(const Window *window) {
     // LOCAL DIAGNOSTIC SEAM ONLY (never commit): /tmp/vex_live existing
     // forces live mode so the modal-drag path reproduces without a mouse.
@@ -1539,6 +1591,7 @@ static NSWindowStyleMask styleMaskOf(Window *window) {
     return [(*window).nsWindow styleMask];
 }
 
+// Test whether the native window's current style mask contains the requested bit.
 static bool hasStyleBit(Window *window, NSWindowStyleMask bit) {
     return (styleMaskOf(window) & bit) != 0;
 }
@@ -1564,6 +1617,7 @@ static void refreshChrome(Window *w) {
     TrafficLight_refresh((*w).trafficLights);
 }
 
+// Set the AppKit title and reapply hidden-title chrome when required.
 void Window_setTitle(Window *window, const char *title) {
     if (window == nullptr || title == nullptr)
         return;
@@ -1582,18 +1636,21 @@ void Window_setTitle(Window *window, const char *title) {
     }
 }
 
+// Read the cached content width in native physical pixels.
 int Window_width(Window *window) {
     if (window == nullptr)
         return 0;
     return atomic_load_explicit(&(*window).cachedWidth, memory_order_relaxed);
 }
 
+// Read the cached content height in native physical pixels.
 int Window_height(Window *window) {
     if (window == nullptr)
         return 0;
     return atomic_load_explicit(&(*window).cachedHeight, memory_order_relaxed);
 }
 
+// Convert requested physical dimensions to AppKit points and resize the content.
 void Window_setSize(Window *window, int width, int height) {
     if (window == nullptr || width <= 0 || height <= 0)
         return;
@@ -1606,10 +1663,12 @@ void Window_setSize(Window *window, int width, int height) {
     }
 }
 
+// Return the current AppKit backing scale factor for the window or main screen.
 float Window_getScale(const Window *window) {
     return (float) windowBackingScale(window);
 }
 
+// Reconcile scale, physical size, screen origin, and monitor after display changes.
 void Window_revalidate(Window *window) {
     if (window == nullptr || (*window).nsWindow == nil)
         return;
@@ -1636,6 +1695,7 @@ void Window_revalidate(Window *window) {
     }
 }
 
+// Set content dimensions directly in AppKit points and refresh pixel geometry.
 void Window_setSizePoints(Window *window, float width, float height) {
     if (window == nullptr || width <= 0.0f || height <= 0.0f)
         return;
@@ -1645,6 +1705,7 @@ void Window_setSizePoints(Window *window, float width, float height) {
     }
 }
 
+// Read content dimensions in points through optional output parameters.
 void Window_getSizePoints(const Window *window, float *outWidth, float *outHeight) {
     if (window == nullptr || (*window).nsWindow == nil) {
         if (outWidth) *outWidth = 0.0f;
@@ -1661,34 +1722,41 @@ void Window_getSizePoints(const Window *window, float *outWidth, float *outHeigh
     }
 }
 
+// Return the content width in points through the shared size getter.
 float Window_widthPoints(const Window *window) {
     float w = 0.0f;
     Window_getSizePoints(window, &w, nullptr);
     return w;
 }
 
+// Return the content height in points through the shared size getter.
 float Window_heightPoints(const Window *window) {
     float h = 0.0f;
     Window_getSizePoints(window, nullptr, &h);
     return h;
 }
 
+// Alias the physical content width as the viewport width.
 int Window_viewportWidth(const Window *window) {
     return Window_width((Window*) window);
 }
 
+// Alias the physical content height as the viewport height.
 int Window_viewportHeight(const Window *window) {
     return Window_height((Window*) window);
 }
 
+// Alias the logical content width as the viewport width in points.
 float Window_viewportWidthPoints(const Window *window) {
     return Window_widthPoints(window);
 }
 
+// Alias the logical content height as the viewport height in points.
 float Window_viewportHeightPoints(const Window *window) {
     return Window_heightPoints(window);
 }
 
+// Return the outer NSWindow frame width in native pixels.
 int Window_windowWidth(const Window *window) {
     if (window == nullptr || (*window).nsWindow == nil)
         return 0;
@@ -1699,6 +1767,7 @@ int Window_windowWidth(const Window *window) {
     }
 }
 
+// Return the outer NSWindow frame height in native pixels.
 int Window_windowHeight(const Window *window) {
     if (window == nullptr || (*window).nsWindow == nil)
         return 0;
@@ -1709,6 +1778,7 @@ int Window_windowHeight(const Window *window) {
     }
 }
 
+// Return the outer NSWindow frame width in AppKit points.
 float Window_windowWidthPoints(const Window *window) {
     if (window == nullptr || (*window).nsWindow == nil)
         return 0.0f;
@@ -1717,6 +1787,7 @@ float Window_windowWidthPoints(const Window *window) {
     }
 }
 
+// Return the outer NSWindow frame height in AppKit points.
 float Window_windowHeightPoints(const Window *window) {
     if (window == nullptr || (*window).nsWindow == nil)
         return 0.0f;
@@ -1725,6 +1796,7 @@ float Window_windowHeightPoints(const Window *window) {
     }
 }
 
+// Place the window by its top-left screen coordinate in the public pixel space.
 void Window_setLocation(Window *window, int x, int y) {
     if (window == nullptr)
         return;
@@ -1734,6 +1806,7 @@ void Window_setLocation(Window *window, int x, int y) {
     }
 }
 
+// Return the cached top-left screen origin through optional output pointers.
 void Window_getLocation(const Window *window, int *outX, int *outY) {
     if (outX)
         *outX = window ? (int) (*window).cachedX : 0;
@@ -1741,6 +1814,7 @@ void Window_getLocation(const Window *window, int *outX, int *outY) {
         *outY = window ? (int) (*window).cachedY : 0;
 }
 
+// Return the cached content-view screen origin through optional outputs.
 void Window_getContentOrigin(const Window *window, int *outX, int *outY) {
     if (outX)
         *outX = window ? (int) (*window).cachedContentX : 0;
@@ -1748,6 +1822,7 @@ void Window_getContentOrigin(const Window *window, int *outX, int *outY) {
         *outY = window ? (int) (*window).cachedContentY : 0;
 }
 
+// Center the window in the main display's usable visible frame.
 void Window_center(Window *window) {
     if (window == nullptr)
         return;
@@ -1805,6 +1880,7 @@ static void claimKeyAfterActivation(NSWindow *nsw) {
     sPendingKeyWindow = nsw;
 }
 
+// Activate and show the native window, then refresh its monitor mirror.
 void Window_show(Window *window) {
     if (window == nullptr)
         return;
@@ -1814,6 +1890,7 @@ void Window_show(Window *window) {
     }
 }
 
+// Remove the native window from display and cancel its pending key-window claim.
 void Window_hide(Window *window) {
     if (window == nullptr)
         return;
@@ -1824,6 +1901,7 @@ void Window_hide(Window *window) {
     }
 }
 
+// Select the native show or hide operation from the requested visibility.
 void Window_setVisible(Window *window, bool visible) {
     if (visible)
         Window_show(window);
@@ -1831,42 +1909,49 @@ void Window_setVisible(Window *window, bool visible) {
         Window_hide(window);
 }
 
+// Query the AppKit style mask for the resizable capability.
 bool Window_isResizable(Window *window) {
     if (window == nullptr)
         return false;
     return hasStyleBit(window, NSWindowStyleMaskResizable);
 }
 
+// Add or remove the resizable style bit unless AppKit owns fullscreen chrome.
 void Window_setResizable(Window *window, bool resizable) {
     if (window == nullptr)
         return;
     updateStyleMask(window, resizable ? NSWindowStyleMaskResizable : 0, resizable ? 0 : NSWindowStyleMaskResizable);
 }
 
+// Query the AppKit style mask for the close-button capability.
 bool Window_isClosable(Window *window) {
     if (window == nullptr)
         return false;
     return hasStyleBit(window, NSWindowStyleMaskClosable);
 }
 
+// Add or remove the native close-button style bit.
 void Window_setClosable(Window *window, bool closable) {
     if (window == nullptr)
         return;
     updateStyleMask(window, closable ? NSWindowStyleMaskClosable : 0, closable ? 0 : NSWindowStyleMaskClosable);
 }
 
+// Query the AppKit style mask for the minimize-button capability.
 bool Window_isMiniaturizable(Window *window) {
     if (window == nullptr)
         return false;
     return hasStyleBit(window, NSWindowStyleMaskMiniaturizable);
 }
 
+// Add or remove the native minimize-button style bit.
 void Window_setMiniaturizable(Window *window, bool miniaturizable) {
     if (window == nullptr)
         return;
     updateStyleMask(window, miniaturizable ? NSWindowStyleMaskMiniaturizable : 0, miniaturizable ? 0 : NSWindowStyleMaskMiniaturizable);
 }
 
+// Enable or disable the native fullscreen collection behavior for the window.
 void Window_setFullscreenButton(Window *window, bool enabled) {
     if (window == nullptr)
         return;
@@ -1880,6 +1965,7 @@ void Window_setFullscreenButton(Window *window, bool enabled) {
     }
 }
 
+// Apply the requested native chrome mode and refresh traffic-light geometry.
 void Window_setUndecorated(Window *window, int mode) {
     if (window == nullptr)
         return;
@@ -1920,36 +2006,43 @@ void Window_setUndecorated(Window *window, int mode) {
     }
 }
 
+// Translate the boolean decoration preference into the native chrome mode setter.
 void Window_setDecorated(Window *window, bool decorated) {
     Window_setUndecorated(window, decorated ? WINDOW_DECORATED : WINDOW_UNDECORATED_BORDERLESS);
 }
 
+// Report whether the stored mode selects standard decorated chrome.
 bool Window_isDecorated(const Window *window) {
     if (window == nullptr)
         return false;
     return (*window).undecoratedMode == WINDOW_DECORATED;
 }
 
+// Translate the naked-titlebar preference into the native chrome mode setter.
 void Window_setNaked(Window *window, bool naked) {
     Window_setUndecorated(window, naked ? WINDOW_UNDECORATED_NAKED : WINDOW_DECORATED);
 }
 
+// Report whether the stored mode selects full-size-content naked chrome.
 bool Window_isNaked(const Window *window) {
     if (window == nullptr)
         return false;
     return (*window).undecoratedMode == WINDOW_UNDECORATED_NAKED;
 }
 
+// Translate the borderless preference into the native chrome mode setter.
 void Window_setBorderless(Window *window, bool borderless) {
     Window_setUndecorated(window, borderless ? WINDOW_UNDECORATED_BORDERLESS : WINDOW_DECORATED);
 }
 
+// Report whether the stored mode selects borderless chrome.
 bool Window_isBorderless(const Window *window) {
     if (window == nullptr)
         return false;
     return (*window).undecoratedMode == WINDOW_UNDECORATED_BORDERLESS;
 }
 
+// Extend or restore decorated content into the titlebar and refresh geometry.
 void Window_setViewportFlushToTop(Window *window, bool flush) {
     if (window == nullptr)
         return;
@@ -1983,6 +2076,7 @@ void Window_setViewportFlushToTop(Window *window, bool flush) {
     }
 }
 
+// Read whether decorated chrome currently extends content into the titlebar.
 bool Window_isViewportFlushToTop(const Window *window) {
     if (window == nullptr)
         return false;
@@ -1991,6 +2085,7 @@ bool Window_isViewportFlushToTop(const Window *window) {
     return (*window).viewportFlushToTop;
 }
 
+// Route floating traffic-light behavior through the titlebar-flush setting.
 void Window_setFloatingTrafficLights(Window *window, bool floating) {
     Window_setViewportFlushToTop(window, floating);
 }
@@ -2007,6 +2102,7 @@ static int lightIndex(WindowTrafficLight light) {
     return -1;
 }
 
+// Set visibility for a validated native traffic-light button enum.
 void Window_macOS_setTrafficLightButtonVisible(Window *window, WindowTrafficLight light, bool visible) {
     if (window == nullptr)
         return;
@@ -2018,6 +2114,7 @@ void Window_macOS_setTrafficLightButtonVisible(Window *window, WindowTrafficLigh
     }
 }
 
+// Query configured visibility for a valid native traffic-light button.
 bool Window_macOS_isTrafficLightButtonVisible(const Window *window, WindowTrafficLight light) {
     int i = lightIndex(light);
     if (window == nullptr || i < 0)
@@ -2025,6 +2122,7 @@ bool Window_macOS_isTrafficLightButtonVisible(const Window *window, WindowTraffi
     return TrafficLight_isButtonVisible((*window).trafficLights, (TrafficLightButton) i);
 }
 
+// Set the traffic-light cluster's header-relative position in AppKit points.
 void Window_macOS_setTrafficLightHeaderPosition(Window *window, float x, float y) {
     if (window == nullptr)
         return;
@@ -2033,6 +2131,7 @@ void Window_macOS_setTrafficLightHeaderPosition(Window *window, float x, float y
     }
 }
 
+// Return the configured header-relative button-cluster position through outputs.
 void Window_macOS_getTrafficLightHeaderPosition(const Window *window, float *outX, float *outY) {
     float x = 0.0f;
     float y = 0.0f;
@@ -2044,6 +2143,7 @@ void Window_macOS_getTrafficLightHeaderPosition(const Window *window, float *out
         *outY = y;
 }
 
+// Set the native NSWindow alpha value.
 void Window_setOpacity(Window *window, float opacity) {
     if (window == nullptr)
         return;
@@ -2052,6 +2152,7 @@ void Window_setOpacity(Window *window, float opacity) {
     }
 }
 
+// Set the native opaque/background policy and publish the transparency state.
 void Window_setTransparentBackground(Window *window, bool transparent) {
     if (window == nullptr)
         return;
@@ -2105,6 +2206,7 @@ bool Window_macOS_hasLiquidGlass(void) {
     return false;
 }
 
+// Apply or remove the runtime-available Liquid Glass view from its descriptor.
 void Window_macOS_setLiquidGlass(Window *window, const WindowLiquidGlassDesc *desc) {
     if (window == nullptr)
         return;
@@ -2145,6 +2247,7 @@ void Window_macOS_setLiquidGlass(Window *window, const WindowLiquidGlassDesc *de
     }
 }
 
+// Copy the currently stored Liquid Glass descriptor to the caller's output.
 bool Window_macOS_getLiquidGlass(const Window *window, WindowLiquidGlassDesc *out) {
     if (window == nullptr || out == nullptr)
         return false;
@@ -2152,6 +2255,7 @@ bool Window_macOS_getLiquidGlass(const Window *window, WindowLiquidGlassDesc *ou
     return true;
 }
 
+// Select the AppKit floating or normal window level.
 void Window_setAlwaysOnTop(Window *window, bool onTop) {
     if (window == nullptr)
         return;
@@ -2160,6 +2264,7 @@ void Window_setAlwaysOnTop(Window *window, bool onTop) {
     }
 }
 
+// Publish caller-owned RGBA pixels as layer contents without copying the buffer.
 void Window_presentRGBA(Window *window, const void *pixels, size_t stride, int width, int height) {
     if (window == nullptr || pixels == nullptr || width <= 0 || height <= 0)
         return;
@@ -2220,12 +2325,14 @@ void *Window_createPresentSurface(Window *window, int widthPx, int heightPx) {
     }
 }
 
+// Release the retained IOSurface reference supplied by the caller.
 void Window_destroyPresentSurface(Window *window, void *surface) {
     (void) window;
     if (surface != nullptr)
         CFRelease((CFTypeRef) surface);
 }
 
+// Publish the IOSurface as the view layer's contents at the current backing scale.
 void Window_presentSurface(Window *window, void *surface) {
     if (window == nullptr || surface == nullptr)
         return;
@@ -2253,6 +2360,7 @@ void Window_presentSurface(Window *window, void *surface) {
     }
 }
 
+// Return the current layer contents handle for the active draw view.
 void *Window_presentSurfaceContents(const Window *window) {
     if (window == nullptr)
         return nullptr;
@@ -2262,6 +2370,7 @@ void *Window_presentSurfaceContents(const Window *window) {
     return (__bridge void *) view.layer.contents;
 }
 
+// Copy IOSurface pixels into the caller's RGBA destination when dimensions permit.
 bool Window_readPresentSurface(Window *window, void *surface, void *destRGBA, size_t destStride) {
     (void) window;
     if (surface == nullptr || destRGBA == nullptr || destStride == 0)
@@ -2316,6 +2425,7 @@ bool Window_writePNG(const void *pixels, size_t stride, int width, int height, c
     return ok;
 }
 
+// Enable or clear the native window's pointer-ignoring behavior.
 void Window_setClickThrough(Window *window, bool clickThrough) {
     if (window == nullptr)
         return;
@@ -2324,6 +2434,7 @@ void Window_setClickThrough(Window *window, bool clickThrough) {
     }
 }
 
+// Request the native non-client shadow policy for decorated chrome.
 void Window_setShadow(Window *window, bool shadow) {
     if (window == nullptr)
         return;
@@ -2332,6 +2443,7 @@ void Window_setShadow(Window *window, bool shadow) {
     }
 }
 
+// Configure whether background dragging is delegated to the native window.
 void Window_setMovableByBackground(Window *window, bool movable) {
     if (window == nullptr)
         return;
@@ -2340,6 +2452,7 @@ void Window_setMovableByBackground(Window *window, bool movable) {
     }
 }
 
+// Order the native window to the front of the AppKit window stack.
 void Window_bringToFront(Window *window) {
     if (window == nullptr)
         return;
@@ -2348,11 +2461,13 @@ void Window_bringToFront(Window *window) {
     }
 }
 
+// Attach a child window using AppKit's parent-child ordering relationship.
 void Window_attachChild(Window *parent, Window *child) {
     (void) parent;
     (void) child;
 }
 
+// Remove an existing child-window relationship from its parent.
 void Window_detachChild(Window *parent, Window *child) {
     (void) parent;
     (void) child;
@@ -2368,6 +2483,7 @@ void Window_minimize(Window *window) {
     }
 }
 
+// Restore a miniaturized window and let AppKit publish its new geometry.
 void Window_restore(Window *window) {
     if (window == nullptr)
         return;
@@ -2376,6 +2492,7 @@ void Window_restore(Window *window) {
     }
 }
 
+// Read the native miniaturization state for a valid window.
 bool Window_isMinimized(Window *window) {
     if (window == nullptr)
         return false;
@@ -2396,6 +2513,7 @@ bool Window_isFullscreen(Window *window) {
     }
 }
 
+// Ask AppKit to enter or exit its native fullscreen space.
 void Window_setFullscreen(Window *window, bool fullscreen) {
     if (window == nullptr)
         return;
@@ -2405,6 +2523,7 @@ void Window_setFullscreen(Window *window, bool fullscreen) {
     }
 }
 
+// Toggle native fullscreen based on the window's current AppKit state.
 void Window_toggleFullscreen(Window *window) {
     if (window == nullptr)
         return;
@@ -2436,6 +2555,7 @@ void Window_setMinSize(Window *window, int width, int height) {
     }
 }
 
+// Convert maximum content dimensions from physical pixels and set AppKit limits.
 void Window_setMaxSize(Window *window, int width, int height) {
     if (window == nullptr)
         return;
@@ -2471,6 +2591,7 @@ void Window_setCursorLocked(Window *window, bool locked) {
     }
 }
 
+// Store the cursor shape that the event path applies to the active window.
 void Window_setCursorType(Window *window, WindowCursorType type) {
     if (window == nullptr)
         return;
@@ -2509,6 +2630,7 @@ void Window_setCursorType(Window *window, WindowCursorType type) {
     }
 }
 
+// Return the requested cursor shape, defaulting for a missing window.
 WindowCursorType Window_getCursorType(const Window *window) {
     if (window == nullptr)
         return WINDOW_CURSOR_DEFAULT;
@@ -2553,6 +2675,7 @@ void Window_setGravityTopLeft(Window *window) {
 void Window_workerPresentBegin(void) {
 }
 
+// Close the retired worker-present transaction hook; this backend owns none.
 void Window_workerPresentEnd(void) {
 }
 
@@ -2564,36 +2687,42 @@ void Window_addKeyAdapter(Window *window, const KeyHandler *adapter) {
     Key_attachWindow((*window).id, adapter);
 }
 
+// Detach a key callback from the window's engine input slot.
 bool Window_removeKeyAdapter(Window *window, const KeyHandler *adapter) {
     if (window == nullptr)
         return false;
     return Key_detachWindow((*window).id, adapter);
 }
 
+// Attach a mouse callback to the window's engine input slot.
 void Window_addMouseAdapter(Window *window, const MouseHandler *adapter) {
     if (window == nullptr)
         return;
     Mouse_attachWindow((*window).id, adapter);
 }
 
+// Detach a mouse callback from the window's engine input slot.
 bool Window_removeMouseAdapter(Window *window, const MouseHandler *adapter) {
     if (window == nullptr)
         return false;
     return Mouse_detachWindow((*window).id, adapter);
 }
 
+// Attach a touch callback to the window's engine input slot.
 void Window_addTouchAdapter(Window *window, const TouchHandler *adapter) {
     if (window == nullptr)
         return;
     Touch_attachWindow((*window).id, adapter);
 }
 
+// Detach a touch callback from the window's engine input slot.
 bool Window_removeTouchAdapter(Window *window, const TouchHandler *adapter) {
     if (window == nullptr)
         return false;
     return Touch_detachWindow((*window).id, adapter);
 }
 
+// Drain key, mouse, and touch callback queues for the engine input modules.
 void Window_dispatchEvents(Window *window) {
     (void) window;
     Key_dispatchEvents();
@@ -2607,6 +2736,7 @@ uint32_t Window_id(Window *window) {
     return window ? (*window).id : FOCUS_BROADCAST;
 }
 
+// Request AppKit activation and schedule the window for key-window promotion.
 void Window_focus(Window *window) {
     if (window == nullptr)
         return;
@@ -2616,16 +2746,19 @@ void Window_focus(Window *window) {
     }
 }
 
+// Compare this window's id with the current process-wide focus identity.
 bool Window_isFocused(Window *window) {
     return window && Focus_isFocused((*window).id);
 }
 
+// Enable or suppress AppKit key-window eligibility for this window.
 void Window_setKeyEnabled(Window *window, bool enabled) {
     if (window == nullptr)
         return;
     atomic_store_explicit(&(*window).keyEnabled, enabled, memory_order_relaxed);
 }
 
+// Read whether this window currently accepts key focus.
 bool Window_isKeyEnabled(const Window *window) {
     if (window == nullptr)
         return false;
@@ -2656,6 +2789,7 @@ uint64_t Window_sizeGeneration(Window *window) {
     return atomic_load_explicit(&(*window).sizeGeneration, memory_order_acquire);
 }
 
+// Register the callback invoked synchronously as native resize geometry changes.
 void Window_setResizeRenderHook(Window *window, WindowResizeRenderFn fn, void *userdata) {
     if (window == nullptr)
         return;
@@ -2663,6 +2797,7 @@ void Window_setResizeRenderHook(Window *window, WindowResizeRenderFn fn, void *u
     (*window).resizeRenderUserdata = userdata;
 }
 
+// Return the callback registered for synchronous resize rendering.
 WindowResizeRenderFn Window_getResizeRenderHook(const Window *window) {
     return window ? (*window).resizeRenderFn : nullptr;
 }

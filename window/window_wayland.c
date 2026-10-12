@@ -426,6 +426,7 @@ typedef struct WindowSlot {
 static WindowSlot *sRefs = nullptr;
 static uint32_t sRefCap = 0;
 
+// Grow the surface-to-window registry geometrically and clear the new slots.
 static bool windowRefsGrow(void) {
     uint32_t nextCap = (sRefCap == 0) ? 8u : sRefCap * 2u;
     WindowSlot *grown = (WindowSlot*) realloc(sRefs, (size_t) nextCap * sizeof(WindowSlot));
@@ -440,6 +441,7 @@ static bool windowRefsGrow(void) {
     return true;
 }
 
+// Assign a reusable non-broadcast id to a surface and its owning C handle.
 static uint32_t windowIdAcquire(struct wl_surface *surface, Window *handle) {
     if (sRefCap == 0 && !windowRefsGrow())
         return FOCUS_BROADCAST;
@@ -462,6 +464,7 @@ static uint32_t windowIdAcquire(struct wl_surface *surface, Window *handle) {
     return FOCUS_BROADCAST;
 }
 
+// Clear a live registry slot when its window is destroyed.
 static void windowIdRelease(uint32_t id) {
     if (id != FOCUS_BROADCAST && id < sRefCap) {
         sRefs[id].surface = nullptr;
@@ -499,6 +502,7 @@ static WaylandOutput *sOutputs = nullptr;
 static uint32_t sOutputCount = 0;
 static uint32_t sOutputCap = 0;
 
+// Resolve an output proxy to its stable engine-facing monitor id.
 static uint32_t waylandOutputIdFor(struct wl_output *output) {
     for (uint32_t i = 0; i < sOutputCount; i++)
         if (sOutputs[i].output == output)
@@ -562,6 +566,7 @@ static void waylandDrain(void) {
 
 // --- xdg-shell listeners -----------------------------------------------------
 
+// Acknowledge each compositor configure serial for this surface.
 static void xdgSurfaceConfigure(void *data, struct xdg_surface *surface, uint32_t serial) {
     Window *window = (Window*) data;
     if (window == nullptr)
@@ -573,6 +578,7 @@ static const struct xdg_surface_listener sXdgSurfaceListener = {
     .configure = xdgSurfaceConfigure,
 };
 
+// Reflect compositor state, resize and restore notifications into the C window.
 static void toplevelConfigure(void *data, struct xdg_toplevel *topLevel, int32_t width,
                               int32_t height, struct wl_array *states) {
     Window *window = (Window*) data;
@@ -603,6 +609,7 @@ static void toplevelConfigure(void *data, struct xdg_toplevel *topLevel, int32_t
         windowRefreshSize(window, (int) width, (int) height);
 }
 
+// Honor the vetoable quit callback and latch close only when it permits.
 static void toplevelClose(void *data, struct xdg_toplevel *topLevel) {
     Window *window = (Window*) data;
     if (window == nullptr)
@@ -620,6 +627,7 @@ static const struct xdg_toplevel_listener sToplevelListener = {
     .close = toplevelClose,
 };
 
+// Reply to the compositor's xdg-shell liveness ping.
 static void wmBasePing(void *data, struct xdg_wm_base *wmBase, uint32_t serial) {
     (void) data;
     xdg_wm_base_pong(wmBase, serial);
@@ -841,6 +849,7 @@ static const char *cursorName(WindowCursorType type) {
     }
 }
 
+// Apply the requested cursor using the current pointer serial and shared theme.
 static void pointerSetCursorFor(uint32_t serial, WindowCursorType type) {
     if (gPointer == nullptr)
         return;
@@ -961,6 +970,7 @@ static void pointerAxis(void *data, struct wl_pointer *pointer, uint32_t time,
         Mouse_pushScrollEvent((*win).id, v, 0.0);
 }
 
+// Complete a pointer event batch; no additional frame state is retained.
 static void pointerFrame(void *data, struct wl_pointer *pointer) {
     (void) data;
     (void) pointer;
@@ -1031,6 +1041,7 @@ static void touchCancel(void *data, struct wl_touch *touch, uint32_t serial, uin
     Touch_pushTouchEvent((*win).id, slot, TOUCH_CANCEL, 0.0, 0.0, 0.0, kTapThresholdNanos);
 }
 
+// Complete a touch event batch; individual events were already forwarded.
 static void touchFrame(void *data, struct wl_touch *touch) {
     (void) data;
     (void) touch;
@@ -1102,6 +1113,7 @@ static void outputMode(void *data, struct wl_output *output, uint32_t flags,
     (void) refresh;
 }
 
+// Consume the output batch terminator; output geometry is not cached here.
 static void outputDone(void *data, struct wl_output *output) {
     (void) data;
     (void) output;
@@ -1113,6 +1125,7 @@ static const struct wl_output_listener sOutputListener = {
     .done = outputDone,
 };
 
+// Register an output proxy and assign its session-stable monitor id.
 static void outputAdd(struct wl_output *output) {
     if (sOutputCount == sOutputCap) {
         uint32_t nextCap = (sOutputCap == 0) ? 4u : sOutputCap * 2u;
@@ -1127,6 +1140,7 @@ static void outputAdd(struct wl_output *output) {
     sOutputCount++;
 }
 
+// Mark a removed output slot inactive without renumbering other monitors.
 static void outputRemove(struct wl_output *output) {
     for (uint32_t i = 0; i < sOutputCount; i++)
         if (sOutputs[i].output == output) {
@@ -1147,6 +1161,7 @@ static void surfaceEnter(void *data, struct wl_surface *surface, struct wl_outpu
         atomic_store_explicit(&(*window).monitorId, id, memory_order_relaxed);
 }
 
+// Clear the monitor mirror when the surface leaves its currently assigned output.
 static void surfaceLeave(void *data, struct wl_surface *surface, struct wl_output *output) {
     Window *window = (Window*) data;
     if (window == nullptr)
@@ -1195,6 +1210,7 @@ static void registryGlobal(void *data, struct wl_registry *registry, uint32_t na
     }
 }
 
+// Ignore registry removals; bound globals remain owned until disconnect.
 static void registryGlobalRemove(void *data, struct wl_registry *registry, uint32_t name) {
     (void) data;
     (void) registry;
@@ -1222,6 +1238,7 @@ static bool waylandConnect(void) {
     return true;
 }
 
+// Release shared cursor, input, output, and protocol objects after the last window.
 static void waylandDisconnect(void) {
     if (sCursorSurface) {
         wl_surface_destroy(sCursorSurface);
@@ -1412,18 +1429,22 @@ static Window *waylandAlloc(const WindowDesc *desc) {
     return window;
 }
 
+// Construct a default Wayland window through the common descriptor path.
 Window *Window_0(void) {
     return Window_new(nullptr);
 }
 
+// Construct a Wayland window with the supplied title and default geometry.
 Window *Window_1(const char *title) {
     return Window_new(&(WindowDesc){ .title = title });
 }
 
+// Construct a Wayland window with a title and explicit pixel dimensions.
 Window *Window_3(const char *title, int width, int height) {
     return Window_new(&(WindowDesc){ .title = title, .width = width, .height = height });
 }
 
+// Resolve defaults, allocate the protocol surface chain, and show if requested.
 Window *Window_new(const WindowDesc *desc) {
     WindowDesc d = descResolve(desc);
     Window *window = waylandAlloc(&d);
@@ -1434,6 +1455,7 @@ Window *Window_new(const WindowDesc *desc) {
     return window;
 }
 
+// Preserve the legacy constructor spelling by forwarding to Window_new.
 Window *Window_create(const char *title, int width, int height) {
     return Window_new(&(WindowDesc){ .title = title, .width = width, .height = height });
 }
@@ -1467,15 +1489,18 @@ void Window_destroy(Window *window) {
         waylandDisconnect();
 }
 
+// Read the close latch, treating a missing window as already closed.
 bool Window_shouldClose(Window *window) {
     return window ? atomic_load_explicit(&(*window).shouldClose, memory_order_relaxed) : true;
 }
 
+// Set the close latch observed by the host lifecycle loop.
 void Window_setShouldClose(Window *window, bool shouldClose) {
     if (window != nullptr)
         atomic_store_explicit(&(*window).shouldClose, shouldClose, memory_order_relaxed);
 }
 
+// Destroy the native protocol surface chain and mark the handle closed.
 void Window_close(Window *window) {
     if (!window) return;
     if ((*window).topLevel) { xdg_toplevel_destroy((*window).topLevel); (*window).topLevel = nullptr; }
@@ -1492,6 +1517,7 @@ void Window_pollEvents(void) {
     waylandDrain();
 }
 
+// Run the batch Wayland pump; this backend does not expose event-by-event stepping.
 bool Window_pollEventStep(void) {
     Window_pollEvents();
     return false; // Wayland's existing batch pump owns its dispatch boundary.
@@ -1507,12 +1533,14 @@ void Window_setPresentMode(Window *window, int mode) {
         atomic_fetch_add_explicit(&(*window).renderGeneration, 1, memory_order_release);
 }
 
+// Return the stored presentation policy, defaulting to FIFO for a null handle.
 int Window_getPresentMode(const Window *window) {
     if (window == nullptr)
         return WINDOW_PRESENT_FIFO;
     return atomic_load_explicit(&(*window).presentMode, memory_order_relaxed);
 }
 
+// Update transparency policy and advance the render generation when it changes.
 void Window_setTransparent(Window *window, bool transparent) {
     if (window == nullptr)
         return;
@@ -1521,10 +1549,12 @@ void Window_setTransparent(Window *window, bool transparent) {
         atomic_fetch_add_explicit(&(*window).renderGeneration, 1, memory_order_release);
 }
 
+// Read the stored transparency policy, returning false for a null handle.
 bool Window_isTransparent(const Window *window) {
     return window ? atomic_load_explicit(&(*window).transparent, memory_order_relaxed) : false;
 }
 
+// Read the render-policy generation with acquire ordering.
 uint64_t Window_renderGeneration(const Window *window) {
     return window ? atomic_load_explicit(&(*window).renderGeneration, memory_order_acquire) : 0;
 }
@@ -1538,6 +1568,7 @@ void Window_orderLayers(Window *window) {
     (void) window;
 }
 
+// Store the opaque lower-layer handle; this backend does not render it.
 void Window_setBottomLayer(Window *window, void *layer) {
     if (window == nullptr)
         return;
@@ -1545,10 +1576,12 @@ void Window_setBottomLayer(Window *window, void *layer) {
     Window_orderLayers(window);
 }
 
+// Return the opaque lower-layer handle without interpreting it.
 void *Window_getBottomLayer(const Window *window) {
     return window ? atomic_load_explicit(&(*window).bottomLayer, memory_order_acquire) : nullptr;
 }
 
+// Store the opaque upper-layer handle; this backend does not render it.
 void Window_setTopLayer(Window *window, void *layer) {
     if (window == nullptr)
         return;
@@ -1556,6 +1589,7 @@ void Window_setTopLayer(Window *window, void *layer) {
     Window_orderLayers(window);
 }
 
+// Return the opaque upper-layer handle without interpreting it.
 void *Window_getTopLayer(const Window *window) {
     return window ? atomic_load_explicit(&(*window).topLayer, memory_order_acquire) : nullptr;
 }
@@ -1571,6 +1605,7 @@ bool Window_attachPanes(Window *window, Panel *panel, int width, int height) {
     return false;
 }
 
+// Retain the legacy pane API as an inert failure on the lean window backend.
 bool Window_resizePanes(Window *window, Panel *panel, int width, int height) {
     (void) window;
     (void) panel;
@@ -1579,11 +1614,13 @@ bool Window_resizePanes(Window *window, Panel *panel, int width, int height) {
     return false;
 }
 
+// Keep the retired pane-compositor entry point linkable without rendering.
 void Window_compositePanes(Window *window, Panel *contentPanel) {
     (void) window;
     (void) contentPanel;
 }
 
+// Keep the retired board-compositor entry point linkable without rendering.
 void Window_compositeBoards(Window *window) {
     (void) window;
 }
@@ -1598,68 +1635,84 @@ void Window_setTitle(Window *window, const char *title) {
     xdg_toplevel_set_title((*window).topLevel, (*window).title ? (*window).title : "");
 }
 
+// Read the most recently configured client width in physical pixels.
 int Window_width(Window *window) {
     return window ? atomic_load_explicit(&(*window).cachedWidth, memory_order_relaxed) : 0;
 }
 
+// Read the most recently configured client height in physical pixels.
 int Window_height(Window *window) {
     return window ? atomic_load_explicit(&(*window).cachedHeight, memory_order_relaxed) : 0;
 }
 
+// Report unit scale because this Wayland mirror has no fractional-scale support.
 float Window_getScale(const Window *window) {
     (void) window;
     return 1.0f;
 }
 
+// Provide the display-revalidation seam; this draft backend stores no scale state.
 void Window_revalidate(Window *window) {
     (void) window;
 }
 
+// Forward logical-size requests to the integer pixel sizing seam.
 void Window_setSizePoints(Window *window, float width, float height) {
     Window_setSize(window, (int) width, (int) height);
 }
 
+// Project cached pixel dimensions into the compatibility points outputs.
 void Window_getSizePoints(const Window *window, float *outWidth, float *outHeight) {
     if (outWidth) *outWidth = (float) Window_width(window);
     if (outHeight) *outHeight = (float) Window_height(window);
 }
 
+// Return the cached width through the points compatibility accessor.
 float Window_widthPoints(const Window *window) {
     return (float) Window_width(window);
 }
 
+// Return the cached height through the points compatibility accessor.
 float Window_heightPoints(const Window *window) {
     return (float) Window_height(window);
 }
 
+// Alias the client width as the viewport width.
 int Window_viewportWidth(const Window *window) {
     return Window_width(window);
 }
 
+// Alias the client height as the viewport height.
 int Window_viewportHeight(const Window *window) {
     return Window_height(window);
 }
 
+// Alias the logical width as the viewport width in points.
 float Window_viewportWidthPoints(const Window *window) {
     return (float) Window_width(window);
 }
 
+// Alias the logical height as the viewport height in points.
 float Window_viewportHeightPoints(const Window *window) {
     return (float) Window_height(window);
 }
 
+// Alias the client width as the outer-window width in this backend.
 int Window_windowWidth(const Window *window) {
     return Window_width(window);
 }
 
+// Alias the client height as the outer-window height in this backend.
 int Window_windowHeight(const Window *window) {
     return Window_height(window);
 }
 
+// Alias the logical client width as the outer-window width in points.
 float Window_windowWidthPoints(const Window *window) {
     return (float) Window_width(window);
 }
 
+// Alias the logical client height as the outer-window height in points.
 float Window_windowHeightPoints(const Window *window) {
     return (float) Window_height(window);
 }
@@ -1675,12 +1728,14 @@ void Window_setSize(Window *window, int width, int height) {
     wl_surface_commit((*window).surface);
 }
 
+// Accept the placement request; xdg-shell leaves positioning to the compositor.
 void Window_setLocation(Window *window, int x, int y) {
     (void) window;
     (void) x;
     (void) y;
 }
 
+// Return zero because Wayland does not expose client-readable toplevel position.
 void Window_getLocation(const Window *window, int *outX, int *outY) {
     if (outX != nullptr)
         *outX = 0;
@@ -1689,6 +1744,7 @@ void Window_getLocation(const Window *window, int *outX, int *outY) {
     (void) window;
 }
 
+// Return zero content origin because compositor placement is not exposed here.
 void Window_getContentOrigin(const Window *window, int *outX, int *outY) {
     if (outX != nullptr)
         *outX = 0;
@@ -1697,10 +1753,12 @@ void Window_getContentOrigin(const Window *window, int *outX, int *outY) {
     (void) window;
 }
 
+// Retain the centering seam; Wayland compositors control window placement.
 void Window_center(Window *window) {
     (void) window;
 }
 
+// Map the surface by committing it without a buffer to start configure exchange.
 void Window_show(Window *window) {
     if (window == nullptr)
         return;
@@ -1709,6 +1767,7 @@ void Window_show(Window *window) {
     wl_surface_commit((*window).surface);
 }
 
+// Unmap the surface by attaching a null buffer and committing it.
 void Window_hide(Window *window) {
     if (window == nullptr)
         return;
@@ -1717,6 +1776,7 @@ void Window_hide(Window *window) {
     wl_surface_commit((*window).surface);
 }
 
+// Select the Wayland show or hide operation from the requested visibility.
 void Window_setVisible(Window *window, bool visible) {
     if (window == nullptr)
         return;
@@ -1734,98 +1794,117 @@ void Window_setEnabled(Window *window, bool enabled) {
     atomic_store_explicit(&(*window).enabled, enabled, memory_order_relaxed);
 }
 
+// Read whether input routing is enabled for this window.
 bool Window_isEnabled(const Window *window) {
     return window ? atomic_load_explicit(&(*window).enabled, memory_order_relaxed) : false;
 }
 
+// Read the live-resize flag mirrored from compositor configure activity.
 bool Window_isLiveResizing(const Window *window) {
     return window ? atomic_load_explicit(&(*window).liveResizing, memory_order_relaxed) : false;
 }
 
 // --- Chrome capability toggles (SSD-owned on Wayland; stored for clients) ----
 
+// Read the stored resizable capability; server-side decorations enforce chrome.
 bool Window_isResizable(Window *window) {
     return window ? (*window).resizableEnabled : false;
 }
 
+// Update the stored resizable capability for clients using server-side chrome.
 void Window_setResizable(Window *window, bool resizable) {
     if (window == nullptr)
         return;
     (*window).resizableEnabled = resizable;
 }
 
+// Read the stored closable capability; the compositor owns the titlebar action.
 bool Window_isClosable(Window *window) {
     return window ? (*window).closableEnabled : false;
 }
 
+// Update the stored closable capability for consumers of the window contract.
 void Window_setClosable(Window *window, bool closable) {
     if (window == nullptr)
         return;
     (*window).closableEnabled = closable;
 }
 
+// Read the stored minimize capability maintained for server-side decorations.
 bool Window_isMiniaturizable(Window *window) {
     return window ? (*window).minimizeEnabled : false;
 }
 
+// Update the stored minimize capability; no client-side chrome is controlled.
 void Window_setMiniaturizable(Window *window, bool miniaturizable) {
     if (window == nullptr)
         return;
     (*window).minimizeEnabled = miniaturizable;
 }
 
+// Store whether clients should expose a fullscreen control in their own chrome.
 void Window_setFullscreenButton(Window *window, bool enabled) {
     if (window == nullptr)
         return;
     (*window).fullscreenButton = enabled;
 }
 
+// Store the requested chrome mode; the compositor owns server-side decorations.
 void Window_setUndecorated(Window *window, int type) {
     if (window == nullptr)
         return;
     (*window).decorated = (type == WINDOW_DECORATED);
 }
 
+// Translate the boolean chrome request to the undecorated-mode setter.
 void Window_setDecorated(Window *window, bool decorated) {
     Window_setUndecorated(window, decorated ? WINDOW_DECORATED : WINDOW_UNDECORATED_BORDERLESS);
 }
 
+// Report whether the stored chrome mode is decorated.
 bool Window_isDecorated(const Window *window) {
     if (window == nullptr)
         return false;
     return (*window).decorated;
 }
 
+// Translate the naked-titlebar request to the undecorated-mode setter.
 void Window_setNaked(Window *window, bool naked) {
     Window_setUndecorated(window, naked ? WINDOW_UNDECORATED_NAKED : WINDOW_DECORATED);
 }
 
+// Report the stored undecorated state used as the naked-mode mirror.
 bool Window_isNaked(const Window *window) {
     if (window == nullptr)
         return false;
     return !(*window).decorated;
 }
 
+// Translate the borderless request to the undecorated-mode setter.
 void Window_setBorderless(Window *window, bool borderless) {
     Window_setUndecorated(window, borderless ? WINDOW_UNDECORATED_BORDERLESS : WINDOW_DECORATED);
 }
 
+// Report the stored undecorated state used as the borderless-mode mirror.
 bool Window_isBorderless(const Window *window) {
     if (window == nullptr)
         return false;
     return !(*window).decorated;
 }
 
+// Retain the AppKit-only flush request as an inert Wayland compatibility seam.
 void Window_setViewportFlushToTop(Window *window, bool flush) {
     (void) window;
     (void) flush;
 }
 
+// Report that viewport flush-to-top is unavailable on this backend.
 bool Window_isViewportFlushToTop(const Window *window) {
     (void) window;
     return false;
 }
 
+// Retain the macOS floating-lights request without a Wayland implementation.
 void Window_setFloatingTrafficLights(Window *window, bool floating) {
     (void) window;
     (void) floating;
@@ -1841,18 +1920,21 @@ void Window_macOS_setTrafficLightButtonVisible(Window *window, WindowTrafficLigh
     fprintf(stderr, "[window] macOS-only traffic-light API called on Wayland\n");
 }
 
+// Reject visibility queries for macOS chrome on this non-macOS backend.
 bool Window_macOS_isTrafficLightButtonVisible(const Window *window, WindowTrafficLight light) {
     (void) window;
     (void) light;
     return false;
 }
 
+// Retain the macOS-only traffic-light placement API as an inert stub.
 void Window_macOS_setTrafficLightHeaderPosition(Window *window, float x, float y) {
     (void) window;
     (void) x;
     (void) y;
 }
 
+// Return zero coordinates because this backend has no native traffic lights.
 void Window_macOS_getTrafficLightHeaderPosition(const Window *window, float *outX, float *outY) {
     if (outX != nullptr)
         *outX = 0.0f;
@@ -1861,18 +1943,21 @@ void Window_macOS_getTrafficLightHeaderPosition(const Window *window, float *out
     (void) window;
 }
 
+// Store opacity for consumers; Wayland core has no per-surface opacity request.
 void Window_setOpacity(Window *window, float opacity) {
     if (window == nullptr)
         return;
     (*window).opacity = opacity;
 }
 
+// Forward the background transparency preference to the stored policy setter.
 void Window_setTransparentBackground(Window *window, bool transparent) {
     if (window == nullptr)
         return;
     atomic_store_explicit(&(*window).transparent, transparent, memory_order_relaxed);
 }
 
+// Retain the stacking preference; Wayland core does not let clients raise windows.
 void Window_setAlwaysOnTop(Window *window, bool onTop) {
     (void) window;
     (void) onTop;
@@ -1899,18 +1984,21 @@ void Window_setClickThrough(Window *window, bool clickThrough) {
     }
 }
 
+// Store the requested shadow preference for client-side chrome consumers.
 void Window_setShadow(Window *window, bool shadow) {
     if (window == nullptr)
         return;
     (*window).shadow = shadow;
 }
 
+// Store whether the backend's hit-test path should treat the surface as draggable.
 void Window_setMovableByBackground(Window *window, bool movable) {
     if (window == nullptr)
         return;
     (*window).movableByBackground = movable;
 }
 
+// Retain the stacking seam; activation is compositor-controlled on Wayland.
 void Window_bringToFront(Window *window) {
     (void) window;
 }
@@ -1921,6 +2009,7 @@ void Window_attachChild(Window *parent, Window *child) {
     (void) child;
 }
 
+// Keep child-window ordering API linkable; the compositor owns Wayland stacking.
 void Window_detachChild(Window *parent, Window *child) {
     (void) parent;
     (void) child;
@@ -1935,6 +2024,7 @@ void Window_minimize(Window *window) {
     (*window).minimized = true;
 }
 
+// Clear the remembered minimized state and recommit the surface for remapping.
 void Window_restore(Window *window) {
     if (window == nullptr)
         return;
@@ -1942,6 +2032,7 @@ void Window_restore(Window *window) {
     wl_surface_commit((*window).surface);
 }
 
+// Report the last minimized request because xdg-shell has no minimize-state event.
 bool Window_isMinimized(Window *window) {
     return window ? (*window).minimized : false;
 }
@@ -1952,6 +2043,7 @@ bool Window_isFullscreen(Window *window) {
     return window ? (*window).fullscreen : false;
 }
 
+// Request or release compositor-managed fullscreen for the toplevel.
 void Window_setFullscreen(Window *window, bool fullscreen) {
     if (window == nullptr)
         return;
@@ -1961,6 +2053,7 @@ void Window_setFullscreen(Window *window, bool fullscreen) {
         xdg_toplevel_unset_fullscreen((*window).topLevel);
 }
 
+// Toggle fullscreen based on the last state reflected from the compositor.
 void Window_toggleFullscreen(Window *window) {
     if (window == nullptr)
         return;
@@ -1984,6 +2077,7 @@ void Window_setMinSize(Window *window, int width, int height) {
     xdg_toplevel_set_min_size((*window).topLevel, width, height);
 }
 
+// Store and publish maximum toplevel dimensions to the compositor.
 void Window_setMaxSize(Window *window, int width, int height) {
     if (window == nullptr)
         return;
@@ -2002,6 +2096,7 @@ void Window_setCursorType(Window *window, WindowCursorType type) {
     // button serial; there is no client-owned cursor surface on Wayland.
 }
 
+// Read the requested cursor shape, defaulting for a missing window.
 WindowCursorType Window_getCursorType(const Window *window) {
     return window ? (*window).cursorType : WINDOW_CURSOR_DEFAULT;
 }
@@ -2035,13 +2130,16 @@ void *Window_metalLayer(Window *window) {
     return nullptr;
 }
 
+// Retain the retired gravity seam as an inert operation on the lean backend.
 void Window_setGravityTopLeft(Window *window) {
     (void) window;
 }
 
+// Keep the retired worker-present transaction hook linkable as a no-op.
 void Window_workerPresentBegin(void) {
 }
 
+// Close the retired worker-present transaction hook; no transaction is owned here.
 void Window_workerPresentEnd(void) {
 }
 
@@ -2090,28 +2188,33 @@ void Window_addKeyAdapter(Window *window, const KeyHandler *adapter) {
     Key_attachWindow((*window).id, adapter);
 }
 
+// Detach a key callback from the window's engine input slot.
 bool Window_removeKeyAdapter(Window *window, const KeyHandler *adapter) {
     return (window != nullptr && adapter != nullptr)
         ? Key_detachWindow((*window).id, adapter) : false;
 }
 
+// Attach a mouse callback to the window's engine input slot.
 void Window_addMouseAdapter(Window *window, const MouseHandler *adapter) {
     if (window == nullptr || adapter == nullptr)
         return;
     Mouse_attachWindow((*window).id, adapter);
 }
 
+// Detach a mouse callback from the window's engine input slot.
 bool Window_removeMouseAdapter(Window *window, const MouseHandler *adapter) {
     return (window != nullptr && adapter != nullptr)
         ? Mouse_detachWindow((*window).id, adapter) : false;
 }
 
+// Attach a touch callback to the window's engine input slot.
 void Window_addTouchAdapter(Window *window, const TouchHandler *adapter) {
     if (window == nullptr || adapter == nullptr)
         return;
     Touch_attachWindow((*window).id, adapter);
 }
 
+// Detach a touch callback from the window's engine input slot.
 bool Window_removeTouchAdapter(Window *window, const TouchHandler *adapter) {
     return (window != nullptr && adapter != nullptr)
         ? Touch_detachWindow((*window).id, adapter) : false;
@@ -2121,6 +2224,7 @@ WindowEvent *Window_getLifecycle(Window *window) {
     return window ? &(*window).lifecycle : nullptr;
 }
 
+// Drain key, mouse, and touch callback queues for the engine input modules.
 void Window_dispatchEvents(Window *window) {
     (void) window;
     Key_dispatchEvents();
@@ -2141,6 +2245,7 @@ void Window_focus(Window *window) {
     (void) window;
 }
 
+// Read the focus mirror updated by wl_keyboard enter/leave notifications.
 bool Window_isFocused(Window *window) {
     return window ? (*window).lastFocused : false;
 }
@@ -2152,6 +2257,7 @@ void Window_setKeyEnabled(Window *window, bool enabled) {
     atomic_store_explicit(&(*window).keyEnabled, enabled, memory_order_relaxed);
 }
 
+// Read the stored key-input gate, returning false for a null handle.
 bool Window_isKeyEnabled(const Window *window) {
     if (window == nullptr)
         return false;
@@ -2183,6 +2289,7 @@ void Window_setResizeRenderHook(Window *window, WindowResizeRenderFn fn, void *u
     (*window).resizeRenderUserdata = userdata;
 }
 
+// Return the callback registered for synchronous configure-size rendering.
 WindowResizeRenderFn Window_getResizeRenderHook(const Window *window) {
     return window ? (*window).resizeRenderFn : nullptr;
 }
