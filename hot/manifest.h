@@ -192,6 +192,17 @@ bool MANIFEST_IS_FIRST_RUN(void);
 // (hot/hot.c) compares this against its last-seen generation to trigger a swap.
 uint64_t MANIFEST_GENERATION(const char *library);
 
+// Cold loader admission checks the mounted catalog, never trusts placement.
+bool MANIFEST_ALLOWS(const char *library, const char *filename);
+uint32_t MANIFEST_SECTION_COUNT(const char *library);
+// Transactional, one-library promotion. On detected rename/stamp failure, undo
+// completed moves; rollback failure is reported as false. Stable trusted tree,
+// external serialization; crash/power-loss recovery is not provided by this API.
+bool MANIFEST_PROMOTE_LIBRARY(const char *library);
+// Restore the immediately previous set after a failed cold code admission.
+bool MANIFEST_REVERT_LIBRARY(const char *library, uint64_t generation);
+bool MANIFEST_REQUIRES_RECOVERY(void);
+
 // --- PATH BUILDERS (dest-last) ----------------------------------------------
 
 // Push a segment onto a bound builder. When `create` is true the segment's

@@ -26,6 +26,7 @@
 #include "annotation/getter.h"
 #include "annotation/setter.h"
 #include "annotation/intention.h"
+#include "exception/throw.h"
 
 ;;DEFINITION
 /**
@@ -97,6 +98,11 @@
  *   - MANIFEST_REFLECT(library, sourceDir)    : First-run payload reflection
  *   - MANIFEST_UPDATE(library, payloadDir)    : Verify and stage payload
  *   - MANIFEST_PROMOTE()                      : Atomic generation slide
+ *   - MANIFEST_PROMOTE_LIBRARY(library)        : Cold one-library undoable slide
+ *   - MANIFEST_REVERT_LIBRARY(library, generation) : Restore prior cold set
+ *   - MANIFEST_ALLOWS(library, filename)       : Catalog check at load admission
+ *   - MANIFEST_SECTION_COUNT(library)          : Mounted declared section count
+ *   - MANIFEST_REQUIRES_RECOVERY(void)         : Unresolved cold disk undo latch
  *   - MANIFEST_CLEAN(ladder, library)         : Clear specific ladder directory
  *   - MANIFEST_SECTION_LIST(lib, out, cap)    : Retrieve declared section stems
  *   - ManifestPath_append(self, segment)      : Append path component
@@ -170,6 +176,7 @@ typedef struct JsonIn {
 
 static char g_root[MANIFEST_BUF_CAP];
 static bool g_mounted = false;
+static bool g_recoveryRequired = false;
 static char g_name[HOT_MANIFEST_MAX_NAME];
 static char g_version[HOT_MANIFEST_MAX_NAME];
 static char g_org[HOT_MANIFEST_MAX_NAME];
@@ -305,8 +312,13 @@ static bool generation_write(const char *path, uint64_t value) {
     FILE *f = fopen(tmp, "wb");
     if (!f)
         return false;
-    fprintf(f, "%llu\n", (unsigned long long) value);
-    fclose(f);
+    bool written = fprintf(f, "%llu\n", (unsigned long long) value) > 0;
+    if (fclose(f) != 0)
+        written = false;
+    if (!written) {
+        UNLINK(tmp);
+        return false;
+    }
     if (!RENAME(tmp, path)) {
         UNLINK(tmp);
         return false;
@@ -1284,6 +1296,96 @@ bool MANIFEST_UPDATE(const char *library, const char *payloadDir) {
     if (!mkdir_p(staged))
         return false;
     return copy_tree(payloadDir, staged, 0);
+}
+
+bool MANIFEST_ALLOWS(const char *library, const char *filename) {
+    if (!g_mounted || !valid_name(library) || !valid_name(filename))
+        return false;
+    ManifestLibrary *lib = catalog_lookup(library);
+    char stem[HOT_MANIFEST_MAX_NAME];
+    return lib != nullptr && stem_of(filename, stem, sizeof(stem)) && library_declares(lib, stem);
+}
+
+bool MANIFEST_PROMOTE_LIBRARY(const char *library) {
+    // Complete-set validation belongs to cold code admission before promotion.
+    char next[MANIFEST_BUF_CAP], current[MANIFEST_BUF_CAP], previous[MANIFEST_BUF_CAP];
+    char backup[MANIFEST_BUF_CAP], stamp[MANIFEST_BUF_CAP];
+    if (g_recoveryRequired || !g_mounted || !valid_name(library) || catalog_lookup(library) == nullptr ||
+        !ManifestPath_libraryDir(MANIFEST_LADDER_NEW, library, next, sizeof(next), false) ||
+        !ManifestPath_libraryDir(MANIFEST_LADDER_CURRENT, library, current, sizeof(current), false) ||
+        !ManifestPath_libraryDir(MANIFEST_LADDER_PREVIOUS, library, previous, sizeof(previous), false) ||
+        !ManifestPath_generationFile(library, stamp, sizeof(stamp)))
+        return false;
+    int n = snprintf(backup, sizeof(backup), "%s.cold-backup", previous);
+    if (n < 0 || (size_t) n >= sizeof(backup) || dir_exists(backup) || !stage_has_content(next))
+        return false;
+    uint64_t generation = generation_read(stamp);
+    if (generation == UINT64_MAX)
+        return false;
+    bool hadPrevious = dir_exists(previous);
+    bool movedPrevious = false, movedCurrent = false, movedNext = false;
+    if (hadPrevious) {
+        if (!RENAME(previous, backup))
+            goto reject;
+        movedPrevious = true;
+    }
+    if (!RENAME(current, previous))
+        goto reject;
+    movedCurrent = true;
+    if (!RENAME(next, current))
+        goto reject;
+    movedNext = true;
+    if (!generation_write(stamp, generation + 1))
+        goto reject;
+    remove_ladder_dir(backup);
+    return true;
+reject:
+    // Caller has stopped all consumers; never silently proceed after undo fails.
+    bool undo = true;
+    if (movedNext && !RENAME(current, next))
+        undo = false;
+    if (movedCurrent && !RENAME(previous, current))
+        undo = false;
+    if (movedPrevious && !RENAME(backup, previous))
+        undo = false;
+    g_recoveryRequired = !undo;
+    THROW("manifest cold promotion failed; rollback %s", undo ? "resolved" : "FAILED; host recovery required");
+    return false;
+}
+
+bool MANIFEST_REQUIRES_RECOVERY(void) {
+    return g_recoveryRequired;
+}
+
+uint32_t MANIFEST_SECTION_COUNT(const char *library) {
+    if (!g_mounted || !valid_name(library))
+        return 0;
+    ManifestLibrary *lib = catalog_lookup(library);
+    return lib == nullptr ? 0 : (*lib).sectionCount;
+}
+
+bool MANIFEST_REVERT_LIBRARY(const char *library, uint64_t generation) {
+    char next[MANIFEST_BUF_CAP], current[MANIFEST_BUF_CAP], previous[MANIFEST_BUF_CAP], stamp[MANIFEST_BUF_CAP];
+    if (!g_mounted || !valid_name(library) || catalog_lookup(library) == nullptr ||
+        !ManifestPath_libraryDir(MANIFEST_LADDER_NEW, library, next, sizeof(next), false) ||
+        !ManifestPath_libraryDir(MANIFEST_LADDER_CURRENT, library, current, sizeof(current), false) ||
+        !ManifestPath_libraryDir(MANIFEST_LADDER_PREVIOUS, library, previous, sizeof(previous), false) ||
+        !ManifestPath_generationFile(library, stamp, sizeof(stamp)) || dir_exists(next))
+        return false;
+    if (!RENAME(current, next))
+        return false;
+    if (!RENAME(previous, current)) {
+        if (!RENAME(next, current))
+            g_recoveryRequired = true;
+        return false;
+    }
+    if (!generation_write(stamp, generation)) {
+        g_recoveryRequired = true;
+        THROW("manifest revert: generation write failed; host recovery required");
+        return false;
+    }
+    remove_ladder_dir(next);
+    return true;
 }
 
 /** Slides populated staged library directories through the ladder and advances generations. */
