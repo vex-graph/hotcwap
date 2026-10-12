@@ -12,7 +12,7 @@ runtime with a working macOS backend, not a finished multi-platform host.
   ladder), and the window abstraction with the macOS AppKit backend
   (`window/window_cocoa.m`) proven on this host.
 - **Recorded proof is partial.** Only a minority of hotcwap files carry executed
-  evidence in `tests/test-checklist.md`. Owner tests exist under `tests/hotcwap/`
+  evidence in `../../gist/test-checklist.md`. Owner tests exist under `../../tests/hotcwap`
   (loader, kernel, window families), but most rows are still **unrecorded** — a
   green `b build` plus the presence of owner tests is not the same as recorded
   per-file evidence.
@@ -55,7 +55,7 @@ In conventional game architectures, window management and simulation loops are t
 
 ## Workspace Integration & How to Use It
 
-`hotcwap` sits at **R1 host** in the supervisor order (the Vertical Integration Law). It boots first as Kernel Host, owns the master + transient arenas and the Application registry, and tears down last — depending only on `vexspoke` shapes + `graphvex` GPU types, never on `darling`/`api-haven`/engines. The full ecosystem map lives in the workspace root `../../../README.md` and the ecosystem wiki, not here.
+`hotcwap` sits at **R1 host** in the supervisor order (the Vertical Integration Law). It boots first as Kernel Host, owns the master + transient arenas and the Application registry, and tears down last — depending only on `vexspoke` shapes + `graphvex` GPU types, never on `darling`/`api-haven`/engines. The full ecosystem map lives in the workspace root `../../README.md` and the ecosystem wiki, not here.
 
 ### R2 storage boundary
 
@@ -115,7 +115,7 @@ configuration is not a standalone runtime build.
 
 * C23 compiler (Clang with `-std=gnu23`).
 * macOS (AppKit, Cocoa) or Linux (X11).
-* The workspace build system, `b` (bundled at `../../../personal/b`).
+* The workspace build system, `b` (bundled at `../../personal/b`).
 
 ## Scope and Limitations
 

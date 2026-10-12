@@ -1,15 +1,15 @@
 # hotcwap — Repo-Local Living Preferences
 > Repo-local preferences governed by the Living Documentation Law.
-> Universal Supreme Constitution: workspace-root preferences.md, published on Gist.
+> Universal Supreme Constitution: workspace gist/PREFERENCES.md, published on Gist.
 
 ## 0. Constitution Link (supreme)
-- [preferences.md](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a) — real, Git-ignored workspace-root file at ../../../preferences.md, not a tracked Vexspoke file or symlink.
-- All universal laws in `../../../preferences.md` are mandatory and binding across the ecosystem.
+- [preferences.md](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a) — real, Git-ignored workspace file at `../../gist/PREFERENCES.md`, not a tracked Vexspoke file or symlink.
+- All universal laws in `../../gist/PREFERENCES.md` are mandatory and binding across the ecosystem.
 - This document codifies **exclusive** preferences for `hotcwap` (R1 Kernel Host). R2 comprises Vexspoke computation/behavior and Relational Engine memory/storage/native C search. R1 owns lifetimes/residency and must exclude active users before storage destruction. Canonical IO/NIO and the default native Memory implementation are now RE-owned; R1 may borrow those contracts directly. No Rust allocator rewrite, automatic schema migration or live engine reload integration is implied.
 
 ## 1. Repo-Local Law Index (Binding Matrix)
 
-Universal laws are inherited from the canonical `../../../preferences.md` Index; this table indexes the additional laws specific to this repository.
+Universal laws are inherited from the canonical `../../gist/PREFERENCES.md` Index; this table indexes the additional laws specific to this repository.
 
 | Law Title | Scope | Enforcement |
 | :--- | :--- | :--- |

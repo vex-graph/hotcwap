@@ -42,11 +42,11 @@ This boilerplate is **not** an accident, nor is it a misunderstanding of idiomat
 
 ---
 
-## 3. Supreme Living Document: `../../../preferences.md` & Repo-Local Preferences
+## 3. Supreme Living Document: `../../gist/PREFERENCES.md` & Repo-Local Preferences
 
 All architectural rules and style invariants are governed by the central constitution:
 
-- **[preferences.md](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a)** (one real, Git-ignored workspace-root `../../../preferences.md`, not a tracked Vexspoke file or symlink)
+- **[preferences.md](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a)** (one real, Git-ignored workspace `../../gist/PREFERENCES.md`, not a tracked Vexspoke file or symlink)
 - **[hotcwap-preferences.md](hotcwap-preferences.md)** (repo-local mirror binding hotcwap)
 
 Under the Living Documentation Law, update affected contracts in the same cycle.
