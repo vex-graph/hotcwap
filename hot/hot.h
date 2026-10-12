@@ -46,10 +46,32 @@ typedef enum {
     HOT_ERROR_INIT_FAILED,
     HOT_ERROR_RESTORE_FAILED,
     HOT_ERROR_OUT_OF_MEMORY,
+    HOT_ERROR_RECOVERY_REQUIRED,
 } HotResult;
 
 // Module handle — opaque
 typedef struct HotModule HotModule;
+
+// SLOT RECORD owned by HotModule's cold admission; descriptors are supplied by
+// a trusted local builder/release source, not by model output. Exact filenames.
+typedef struct HotSectionDigest {
+    const char *filename;
+    uint8_t sha256[32];
+} HotSectionDigest;
+
+// INTENTIONAL(vex): this cold-update ABI number describes the module export
+// contract, not a manifest generation or an ecosystem class identity.
+#define HOT_COLD_ABI_VERSION 1ULL
+
+// Explicit stop-the-world transaction. Caller stops admission and excludes ALL
+// module callers/callbacks until return, including pending external sessions.
+// Complete flat dylib payload only; no section removals. Verify copies before
+// dlopen, require exported uint64_t Hot_cold_abi, snapshot synchronously, restore
+// candidates before commit. Failure preserves running code/state and attempts
+// disk revert. No downloader/signature verifier, hostile-directory sandbox,
+// crash recovery or arbitrary-code rollback. Constructors/exports are trusted.
+HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
+                         const HotSectionDigest *digests, size_t count, uint32_t *loadedCount);
 
 // Bind the hotloader to one manifest library key (e.g. "hot_behavior").
 // Requires the manifest to be mounted first (MANIFEST() must have run; the
@@ -79,6 +101,8 @@ HotFn Hot_get_symbol(HotModule *hot, const char *name);
 // load/swap). Getters: after a swap Hot_poll advances this; it equals
 // MANIFEST_GENERATION(<library>) when the loader and ladder are in sync.
 uint64_t Hot_get_generation(const HotModule *hot);
+// A disk rollback failure is unresolved: do not resume admission/retry in-process.
+bool Hot_requiresRecovery(const HotModule *hot);
 
 // Get the last error string (for diagnostics).
 const char *Hot_last_error(HotModule *hot);
