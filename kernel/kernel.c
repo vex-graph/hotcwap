@@ -22,7 +22,7 @@
  * DEFINITION: Kernel
  * ============================================================================
  * R1 Host Supervisor: storage and dispatch for executable components across the
- * ecosystem. Owns the master lifetime memory substrate, transient arenas, and the
+ * vexgraph-ecosystem-gitrepo. Owns the master lifetime memory substrate, transient arenas, and the
  * three per-kind registries (processes, applications, consoles). The Kernel owns
  * no execution loops, render ticks, or worker threads; Kernel_run forwards each
  * registered kind to its own run method, allowing dynamic module swapping without

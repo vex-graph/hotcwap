@@ -1,17 +1,39 @@
-// hot/ledger.c — the machine-scoped install ledger (R1 host).
-//
-// Records, OUTSIDE the install tree, that an application (org/app) has been
-// installed on this machine — and survives UNINSTALL — in a per-user state
-// file:
-//   macOS   ~/Library/Application Support/vexgraph/ledger/<org>_<app>.rec
-//   Windows %LOCALAPPDATA%\vexgraph\ledger\<org>_<app>.rec
-//   Linux   $XDG_STATE_HOME/vexgraph/ledger/<org>_<app>.rec
-//
-// No OS secure store, no registry: a plain file outside the tree. This is a
-// CORRECTNESS record, not a security boundary — a local user can always delete
-// it. Its promise is "the machine remembers this app was here", not "the
-// machine cannot forget". The in-tree manifest.json stays the ownership marker
-// for safe deletion; this ledger is the machine's out-of-tree memory.
+#include "annotation/definition.h"
+#include "annotation/overview.h"
+
+;;DEFINITION
+/** The install ledger remembers an application's install state outside its
+ * install tree, so uninstalling the tree does not erase machine history. The
+ * current implementation stores a plain per-user record, not a secure-store
+ * credential or a security boundary. The manifest remains the ownership marker
+ * for deleting an install tree. The record is retained until an explicit forget. */
+;;OVERVIEW
+/** ========================================================================
+ * CLASS: Ledger (hot/ledger.c)
+ * STRUCT FIELDS (Mirroring Ledger)
+ * char org[64]                  admitted application organization identity
+ * char app[64]                  admitted application name identity
+ * char path[512]                per-user record path, outside install tree
+ * char version[64]              last recorded install version
+ * LedgerState state             absent, installed, or uninstalled state
+ * FUNCTION REGISTRY
+ * Constructors: Ledger *Ledger_open(const char *org, const char *app)
+ * Lifecycle: void Ledger_free(Ledger *ledger)
+ * Operations: bool Ledger_recordInstall(Ledger *ledger, const char *version)
+ *   bool Ledger_markUninstalled(Ledger *ledger), bool Ledger_forget(Ledger *ledger)
+ * Projections: LedgerState Ledger_state(const Ledger *ledger)
+ *   bool Ledger_hasRecord(const Ledger *ledger)
+ *   bool Ledger_lastVersion(const Ledger *ledger, char *dest, size_t cap)
+ *   const char *Ledger_lastError(const Ledger *ledger)
+ * Private helpers: state_dir, mkdir_p, sanitize, record_path, apply_record,
+ *   write_state. They select the platform state directory, validate identity
+ *   path components, parse a record, and publish record state.
+ * Admission, null, failure and ownership contract:
+ * Invalid identities, unavailable paths, malformed records and IO failures
+ * reject without claiming a successful state transition. The returned Ledger
+ * owns its record metadata; returned error text is borrowed. The plain record
+ * is correctness state only and is neither tamper-resistant nor a secret store.
+ * ======================================================================== */
 
 #include "hot/ledger.h"
 

@@ -99,7 +99,7 @@ configuration is not a standalone runtime build.
 ## What's in this repo
 
 * **`kernel/kernel.h/.c`** — R1 Host Supervisor (thin nano-VM): `Kernel {arena, transientArena, applications[KERNEL_MAX_APPS]}`. Boots first, tears down last. Holds opaque Application handles + callbacks, never engine headers.
-* **`kernel/`** — The four process kinds (the Process taxonomy): `process` (one-shot invocable), `application` (executable identity + window registry + hot-module slot), `console` (tty/session pump), `commandline` (owned terminal-application host: the single resize surface, bounded input, one present flush, a swappable app seam — `commandline_ncurses.c` is the one ncurses backend).
+* **`kernel`** — The four process kinds (the Process taxonomy): `process` (one-shot invocable), `application` (executable identity + window registry + hot-module slot), `console` (tty/session pump), `commandline` (owned terminal-application host: the single resize surface, bounded input, one present flush, a swappable app seam — `commandline_ncurses.c` is the one ncurses backend).
 * **`spoke/lifetime.h/.c`** — R1→R2 memory substrate contract for vexspoke (and vexspoke only): the `Lifetime` struct (master + transient arenas, opaque handles, type-attested). The single seam including vexspoke memory headers — `kernel` names no vexspoke internal type.
 * **`window/window.h`** — Platform-agnostic window abstraction: creation, sizing, fullscreen toggles, input event dispatch, and title management.
 * **`window/window_cocoa.m`** — Native macOS AppKit backend (pure AppKit, zero Vulkan/Metal): window lifecycle, event pump, chrome, traffic-light API, per-window `WindowEvent` registry.

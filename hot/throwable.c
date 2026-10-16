@@ -161,8 +161,7 @@ _Noreturn void Throwable_throw(ExceptionCategory category,
                               const char *msg,
                               const char *details_fmt,
                               ...) {
-    Exception ex;
-    Exception_init(&ex, category, site, file, line, "%s", msg ? msg : "");
+    Exception ex = Exception(category, site, file, line, "%s", msg ? msg : "");
 
     if (details_fmt != nullptr && details_fmt[0] != '\0') {
         va_list args;
@@ -195,8 +194,7 @@ bool Throwable_tryCatch(bool condition,
         return true;
     }
 
-    Exception ex;
-    Exception_init(&ex, category, site, file, line, "%s", msg ? msg : "");
+    Exception ex = Exception(category, site, file, line, "%s", msg ? msg : "");
 
     if (details_fmt != nullptr && details_fmt[0] != '\0') {
         va_list args;

@@ -83,7 +83,7 @@
 #  define APPLICATION_PATH ".local/share"
 #endif
 
-// The ecosystem org folder under the application-data base (default org in
+// The vexgraph-ecosystem-gitrepo org folder under the application-data base (default org in
 // MANIFEST() calls; resource roots still nest underneath it).
 #define MANIFEST_ORG "vexgraph"
 

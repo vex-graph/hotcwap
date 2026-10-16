@@ -60,7 +60,7 @@ typedef struct HotSectionDigest {
 } HotSectionDigest;
 
 // INTENTIONAL(vex): this cold-update ABI number describes the module export
-// contract, not a manifest generation or an ecosystem class identity.
+// contract, not a manifest generation or an vexgraph-ecosystem-gitrepo class identity.
 #define HOT_COLD_ABI_VERSION 1ULL
 
 // Explicit stop-the-world transaction. Caller stops admission and excludes ALL

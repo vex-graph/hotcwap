@@ -7,11 +7,11 @@
 // hot/ledger.h — the machine-scoped install ledger (R1 host).
 //
 // Records, OUTSIDE the install tree, that an application (org/app) has been
-// installed on this machine — and survives UNINSTALL. Backed by the OS-native
-// secure store: macOS Keychain (hot/ledger_cocoa.m). Other platforms fail
-// closed until a backend is wired (Windows DPAPI, Linux Secret Service).
+// installed on this machine — and survives UNINSTALL. Backed by a plain
+// per-user record file outside the tree (Application Support, LocalAppData, or
+// XDG_STATE_HOME / ~/.local/state, depending on platform).
 //
-// This is a CORRECTNESS record, not a security boundary: a local user with the
+// This is a CORRECTNESS record, not a secure store or security boundary: a local user with the
 // machine can always clear the store. Its promise is "the machine remembers
 // this app was here", not "the machine cannot forget". The in-tree
 // manifest.json stays the ownership marker for safe deletion; this ledger is
