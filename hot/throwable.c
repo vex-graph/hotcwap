@@ -107,14 +107,14 @@ void Throwable_registerTeardown(ThrowableTeardownFn fn) {
     // Deduplicate: check if already registered
     uint32_t count = ChunkedList_size(s_teardownList);
     for (uint32_t i = 0; i < count; i++) {
-        ThrowableTeardownFn *slot = (ThrowableTeardownFn *)ChunkedList_slot(s_teardownList, i);
+        ThrowableTeardownFn *slot = (ThrowableTeardownFn*) ChunkedList_slot(s_teardownList, i);
         if (slot != nullptr && *slot == fn) {
             return; // Already registered
         }
     }
 
     // Allocate next never-moved slot in ChunkedList
-    ThrowableTeardownFn *slot = (ThrowableTeardownFn *)ChunkedList_addSlot(s_teardownList);
+    ThrowableTeardownFn *slot = (ThrowableTeardownFn*) ChunkedList_addSlot(s_teardownList);
     if (slot != nullptr) {
         *slot = fn;
     }
@@ -126,7 +126,7 @@ void Throwable_unregisterTeardown(ThrowableTeardownFn fn) {
 
     uint32_t count = ChunkedList_size(s_teardownList);
     for (uint32_t i = 0; i < count; i++) {
-        ThrowableTeardownFn *slot = (ThrowableTeardownFn *)ChunkedList_slot(s_teardownList, i);
+        ThrowableTeardownFn *slot = (ThrowableTeardownFn*) ChunkedList_slot(s_teardownList, i);
         if (slot != nullptr && *slot == fn) {
             *slot = nullptr; // Tombstone without disturbing other slots
             return;
@@ -141,7 +141,7 @@ void Throwable_runTeardown(void) {
         uint32_t count = ChunkedList_size(s_teardownList);
         // Execute teardown callbacks in LIFO order (last registered first)
         for (uint32_t i = count; i > 0; i--) {
-            ThrowableTeardownFn *slot = (ThrowableTeardownFn *)ChunkedList_slot(s_teardownList, i - 1);
+            ThrowableTeardownFn *slot = (ThrowableTeardownFn*) ChunkedList_slot(s_teardownList, i - 1);
             if (slot != nullptr && *slot != nullptr) {
                 ThrowableTeardownFn fn = *slot;
                 *slot = nullptr; // Prevent double invocation

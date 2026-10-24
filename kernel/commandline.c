@@ -235,7 +235,7 @@ bool CommandLine_present(CommandLine *self) {
 }
 
 bool CommandLine_setApp(CommandLine *self, const CommandLineApp *app) {
-    if (self == nullptr || app == nullptr || app->draw == nullptr || (*self).active
+    if (self == nullptr || app == nullptr || (*app).draw == nullptr || (*self).active
         || (*self).generation == UINT64_MAX) {
         THROW("CommandLine setApp: null draw, busy or generation overflow");
         return false;

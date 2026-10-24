@@ -1201,7 +1201,7 @@ void Window_waitEvents(Window *window, int timeoutMs) {
 static const CGFloat kWindowResizeBorderPoints = 6.0;
 
 /** Route titlebar double-click gestures before ordinary AppKit event delivery. */
-- (void)sendEvent:(NSEvent *)event {
+- (void)sendEvent:(NSEvent*) event {
     if (event.type == NSEventTypeLeftMouseDown && event.clickCount == 2) {
         NSPoint p = [event locationInWindow];
         NSSize size = self.frame.size;
@@ -2321,7 +2321,7 @@ void *Window_createPresentSurface(Window *window, int widthPx, int heightPx) {
             (__bridge id) kIOSurfacePixelFormat: @(kCVPixelFormatType_32RGBA),
         };
         IOSurfaceRef surface = IOSurfaceCreate((__bridge CFDictionaryRef) props);
-        return (void *) surface;
+        return (void*) surface;
     }
 }
 
@@ -2378,12 +2378,12 @@ bool Window_readPresentSurface(Window *window, void *surface, void *destRGBA, si
     IOSurfaceRef s = (IOSurfaceRef) surface;
     if (IOSurfaceLock(s, kIOSurfaceLockReadOnly, nullptr) != kIOReturnSuccess)
         return false;
-    const uint8_t *base = (const uint8_t *) IOSurfaceGetBaseAddress(s);
+    const uint8_t *base = (const uint8_t*) IOSurfaceGetBaseAddress(s);
     size_t srcStride = IOSurfaceGetBytesPerRow(s);
     uint32_t w = (uint32_t) IOSurfaceGetWidth(s);
     uint32_t h = (uint32_t) IOSurfaceGetHeight(s);
     for (uint32_t y = 0; y < h; y++)
-        memcpy((uint8_t *) destRGBA + (size_t) y * destStride,
+        memcpy((uint8_t*) destRGBA + (size_t) y * destStride,
                base + (size_t) y * srcStride, (size_t) w * 4u);
     IOSurfaceUnlock(s, kIOSurfaceLockReadOnly, nullptr);
     return true;

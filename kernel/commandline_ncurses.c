@@ -139,40 +139,40 @@ static bool ncPoll(void *ctx, int timeoutMs, CommandLineEvent *out) {
     if (ch == ERR)
         return false;
     if (ch == KEY_RESIZE) {
-        out->kind = COMMANDLINE_EVENT_RESIZE;
+        (*out).kind = COMMANDLINE_EVENT_RESIZE;
         return true;
     }
     if (ch == KEY_MOUSE) {
         MEVENT ev;
         if (getmouse(&ev) != OK)
             return false;
-        out->x = ev.x;
-        out->y = ev.y;
+        (*out).x = ev.x;
+        (*out).y = ev.y;
         if ((ev.bstate & BUTTON4_PRESSED) != 0)
-            out->kind = COMMANDLINE_EVENT_WHEEL_UP;
+            (*out).kind = COMMANDLINE_EVENT_WHEEL_UP;
 #ifdef BUTTON5_PRESSED
         else if ((ev.bstate & BUTTON5_PRESSED) != 0)
-            out->kind = COMMANDLINE_EVENT_WHEEL_DOWN;
+            (*out).kind = COMMANDLINE_EVENT_WHEEL_DOWN;
 #endif
         else if ((ev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED | BUTTON1_RELEASED)) != 0 ||
                  (ev.bstate & (BUTTON2_CLICKED | BUTTON3_CLICKED)) != 0)
-            out->kind = COMMANDLINE_EVENT_CLICK;
+            (*out).kind = COMMANDLINE_EVENT_CLICK;
         else
             return false;
         return true;
     }
     CommandLineKey key = ncMapKey(ch);
-    out->kind = COMMANDLINE_EVENT_KEY;
+    (*out).kind = COMMANDLINE_EVENT_KEY;
     if (key != COMMANDLINE_KEY_NONE) {
-        out->key = (int) key;
+        (*out).key = (int) key;
     } else if (ch == '\n' || ch == KEY_ENTER) {
-        out->key = (int) COMMANDLINE_KEY_ENTER;
+        (*out).key = (int) COMMANDLINE_KEY_ENTER;
     } else if (ch >= 32 && ch < 127) {
-        out->key = ch;
+        (*out).key = ch;
     } else if (ch >= 1 && ch < 32) {
-        out->key = ch;   // control code (e.g. Ctrl-Q = 17)
+        (*out).key = ch;   // control code (e.g. Ctrl-Q = 17)
     } else {
-        out->key = (int) COMMANDLINE_KEY_UNKNOWN;
+        (*out).key = (int) COMMANDLINE_KEY_UNKNOWN;
     }
     return true;
 }

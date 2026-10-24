@@ -1093,7 +1093,7 @@ uint32_t Kernel_getApplications(const Kernel *self, Application **out, uint32_t 
 
 ;;SETTER
 /** Installs or clears the optional graphics application runner callback. */
-void Kernel_setGfxAppRunner(Kernel *self, int (*fn)(void *context, bool (*continueFn)(void *), bool (*pollFn)(void))) {
+void Kernel_setGfxAppRunner(Kernel *self, int (*fn)(void *context, bool (*continueFn)(void*), bool (*pollFn)(void))) {
     if (!self)
         return;
     (*self).gfxAppRun = fn;
@@ -1101,7 +1101,7 @@ void Kernel_setGfxAppRunner(Kernel *self, int (*fn)(void *context, bool (*contin
 
 ;;GETTER
 /** Returns the configured graphics runner, or nullptr for null self. */
-int (*Kernel_getGfxAppRunner(const Kernel *self))(void *context, bool (*continueFn)(void *), bool (*pollFn)(void)) {
+int (*Kernel_getGfxAppRunner(const Kernel *self))(void *context, bool (*continueFn)(void*), bool (*pollFn)(void)) {
     if (!self)
         return nullptr;
     return (*self).gfxAppRun;

@@ -593,7 +593,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
             return HOT_ERROR_DLOPEN_FAILED;
         }
 
-        typedef const void *(*TrampolinesFn)(uint32_t *);
+        typedef const void *(*TrampolinesFn)(uint32_t*);
         const uint64_t *abi = (*hot).coldCount ? dlsym(handle, "Hot_cold_abi") : nullptr;
         if ((*hot).coldCount && (abi == nullptr || *abi != HOT_COLD_ABI_VERSION)) {
             closedir(dir);

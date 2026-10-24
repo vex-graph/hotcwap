@@ -137,7 +137,7 @@ struct Kernel {
     // BEFORE Kernel_runApplication; a null seat falls back to the parked
     // Application_run loop, so hotcwap compiles and links standalone with zero
     // graphvex symbols (no weak externs, no Mach-O undefined-symbol traps).
-    int (*gfxAppRun)(void *context, bool (*continueFn)(void *), bool (*pollFn)(void));
+    int (*gfxAppRun)(void *context, bool (*continueFn)(void*), bool (*pollFn)(void));
     Process     *processes[KERNEL_MAX_PROCS];    // one-shot invokables
     uint32_t processCount;                       // used slots in processes[]
     Console     *consoles[KERNEL_MAX_CONSOLES];  // session pumps
@@ -282,9 +282,9 @@ Application *Kernel_getApplication(const Kernel *self, uint32_t index);
 // --- GfxLoop runner seat (registered, never linked) ---
 // Install the demand-driven Application loop (graphvex's frame scheduler) into
 // the seat. Null-safe; passing NULL clears the seat (fallback parked loop).
-void Kernel_setGfxAppRunner(Kernel *self, int (*fn)(void *context, bool (*continueFn)(void *), bool (*pollFn)(void)));
+void Kernel_setGfxAppRunner(Kernel *self, int (*fn)(void *context, bool (*continueFn)(void*), bool (*pollFn)(void)));
 // The installed runner, or NULL when unset.
-int (*Kernel_getGfxAppRunner(const Kernel *self))(void *context, bool (*continueFn)(void *), bool (*pollFn)(void));
+int (*Kernel_getGfxAppRunner(const Kernel *self))(void *context, bool (*continueFn)(void*), bool (*pollFn)(void));
 // Number of registered applications.
 uint32_t Kernel_getApplicationCount(const Kernel *self);
 // Copy registry into out[] (up to cap), returns entries written.
