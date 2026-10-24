@@ -1,15 +1,15 @@
 # hotcwap — Repo-Local Living Preferences
 > Repo-local preferences governed by the Living Documentation Law.
-> Universal Supreme Constitution: workspace gist/PREFERENCES.md, published on Gist.
+> Universal constitution: `gist.md` is the compressed law list; `PREFERENCES.md` is its rationale.
 
 ## 0. Constitution Link (supreme)
-- [preferences.md](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a) — real, Git-ignored workspace file at `../../gist/PREFERENCES.md`, not a tracked Vexspoke file or symlink.
-- All universal laws in `../../gist/PREFERENCES.md` are mandatory and binding across the ecosystem.
+- [gist.md](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a#file-gist-md) — the compressed law list, mirrored in this workspace at `../../../metadata/gists/preferences/gist.md`. It is the only normative law text; `../../../PREFERENCES.md` carries the rationale and is never ingested whole. Numbers are slice addresses inside one file, never law identity: cite by Title.
+- All universal laws bind this repository. Read one on demand from the workspace root: `./tools/prefs law "<title>"`, `./tools/prefs section "<section>"`, `./tools/prefs repo <name>`.
 - Exclusive `hotcwap` (R1 Kernel Host) preferences. R2 comprises Vexspoke computation/behavior and Relational Engine memory/storage/native C search. R1 owns lifetimes/residency and excludes active users before storage destruction. Canonical IO/NIO and default native Memory are RE-owned and borrowable here. No Rust allocator rewrite, automatic schema migration or live engine reload integration is implied.
 
 ## 1. Repo-Local Law Index (Binding Matrix)
 
-Universal laws are inherited from the canonical `../../gist/PREFERENCES.md` Index; this table indexes the additional laws specific to this repository.
+Universal laws are inherited from the compressed constitution (`../../../metadata/gists/preferences/gist.md`); this table indexes the additional laws specific to this repository.
 
 | Law Title | Scope | Enforcement |
 | :--- | :--- | :--- |
@@ -26,8 +26,8 @@ Universal laws are inherited from the canonical `../../gist/PREFERENCES.md` Inde
 Exactly ONE on-screen Metal layer belongs to the host composite: seam canvas
 (`CAMetalLayer`), beneath optional transparent `NSVisualEffectView` blur.
 Vulkan boards (scene backdrop, content UI) are retained OFFSCREEN targets
-composited into the seam image by the render repo (Window Compositing Layer
-Order Law + Single-Seam Canvas Law); no per-scene/widget `CALayer` or Vulkan
+composited into the seam image by the render repo; ordering is fixed by this
+seam canvas, not by per-scene layers — no per-scene/widget `CALayer` or Vulkan
 window presentation path.
 
 #### The Why:
