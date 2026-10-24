@@ -1182,8 +1182,11 @@ void Window_waitEvents(Window *window, int timeoutMs) {
 // The standard titlebar strip height (points). A FullSizeContentView window
 // reports a zero titlebar inset, so fall back to the platform's ~28pt strip.
 - (CGFloat)vexTitlebarHeight {
-    NSRect content = [self contentRectForFrameRect:self.frame];
-    CGFloat h = self.frame.size.height - content.size.height;
+    NSRect frame = self.frame;
+    NSRect content = [self contentRectForFrameRect:frame];
+    NSSize frameSize = frame.size;
+    NSSize contentSize = content.size;
+    CGFloat h = frameSize.height - contentSize.height;
     return h > 0.0 ? h : 28.0;
 }
 
@@ -2211,8 +2214,9 @@ void Window_macOS_setLiquidGlass(Window *window, const WindowLiquidGlassDesc *de
     if (window == nullptr)
         return;
     (*window).liquidGlass = desc != nullptr ? *desc : (WindowLiquidGlassDesc){ 0 };
+    WindowLiquidGlassDesc glass = (*window).liquidGlass;
     @autoreleasepool {
-        if (!(*window).liquidGlass.enabled || !Window_macOS_hasLiquidGlass()) {
+        if (!glass.enabled || !Window_macOS_hasLiquidGlass()) {
             if ((*window).glassView != nullptr) {
                 NSView *g = (__bridge NSView *)(*window).glassView;
                 [g removeFromSuperview];

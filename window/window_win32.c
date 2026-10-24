@@ -503,16 +503,18 @@ static void windowApplyMinMax(Window *window, MINMAXINFO *mmi) {
     // The tracking values are OUTER px: WM_GETMINMAXINFO wants the max frame.
     if ((*window).maxWidth > 0 || (*window).maxHeight > 0) {
         AdjustWindowRectEx(&frame, (DWORD) GetWindowLongPtr((*window).hwnd, GWL_STYLE), FALSE, 0);
-        (*mmi).ptMinTrackSize.x = ((*window).minWidth > 0) ?
+        POINT *minTrack = &(*mmi).ptMinTrackSize;
+        POINT *maxTrack = &(*mmi).ptMaxTrackSize;
+        (*minTrack).x = ((*window).minWidth > 0) ?
             ((*window).minWidth + (frame.right - frame.left)) : 0;
-        (*mmi).ptMinTrackSize.y = ((*window).minHeight > 0) ?
+        (*minTrack).y = ((*window).minHeight > 0) ?
             ((*window).minHeight + (frame.bottom - frame.top)) : 0;
         if ((*window).maxWidth > 0)
-            (*mmi).ptMaxTrackSize.x = (LONG)(*window).maxWidth
-                                      + (frame.right - frame.left);
+            (*maxTrack).x = (LONG)(*window).maxWidth
+                            + (frame.right - frame.left);
         if ((*window).maxHeight > 0)
-            (*mmi).ptMaxTrackSize.y = (LONG)(*window).maxHeight
-                                      + (frame.bottom - frame.top);
+            (*maxTrack).y = (LONG)(*window).maxHeight
+                            + (frame.bottom - frame.top);
     }
 }
 
@@ -876,12 +878,13 @@ static LRESULT CALLBACK windowWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 if (dc && (*window).framePixels && (*window).frameW > 0 && (*window).frameH > 0) {
                     BITMAPINFO bi;
                     memset(&bi, 0, sizeof(bi));
-                    (*bi).bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-                    (*bi).bmiHeader.biWidth = (*window).frameW;
-                    (*bi).bmiHeader.biHeight = -(*window).frameH; // top-down
-                    (*bi).bmiHeader.biPlanes = 1;
-                    (*bi).bmiHeader.biBitCount = 32;
-                    (*bi).bmiHeader.biCompression = BI_RGB;
+                    BITMAPINFOHEADER *header = &(*bi).bmiHeader;
+                    (*header).biSize = sizeof(BITMAPINFOHEADER);
+                    (*header).biWidth = (*window).frameW;
+                    (*header).biHeight = -(*window).frameH; // top-down
+                    (*header).biPlanes = 1;
+                    (*header).biBitCount = 32;
+                    (*header).biCompression = BI_RGB;
                     RECT client = {0};
                     GetClientRect(hwnd, &client);
                     int cx = client.right - client.left;
@@ -1075,10 +1078,11 @@ static Window *windowAlloc(const WindowDesc *desc) {
         MONITORINFO mi;
         mi.cbSize = sizeof(mi);
         GetMonitorInfoW(hm, &mi);
-        int wx = (int) ((*mi).rcWork.right - (*mi).rcWork.left - wid) / 2;
-        int wy = (int) ((*mi).rcWork.bottom - (*mi).rcWork.top - hei) / 2;
-        x = (*mi).rcWork.left + wx;
-        y = (*mi).rcWork.top + wy;
+        RECT work = (*mi).rcWork;
+        int wx = (int) (work.right - work.left - wid) / 2;
+        int wy = (int) (work.bottom - work.top - hei) / 2;
+        x = work.left + wx;
+        y = work.top + wy;
     } else if ((*desc).x != 0 || (*desc).y != 0) {
         x = (*desc).x;
         y = (*desc).y;
@@ -1524,8 +1528,9 @@ void Window_center(Window *window) {
     GetWindowRect((*window).hwnd, &rc);
     int wid = (int) (rc.right - rc.left);
     int hei = (int) (rc.bottom - rc.top);
-    int x = (*mi).rcWork.left + ((*mi).rcWork.right - (*mi).rcWork.left - wid) / 2;
-    int y = (*mi).rcWork.top + ((*mi).rcWork.bottom - (*mi).rcWork.top - hei) / 2;
+    RECT work = (*mi).rcWork;
+    int x = work.left + (work.right - work.left - wid) / 2;
+    int y = work.top + (work.bottom - work.top - hei) / 2;
     SetWindowPos((*window).hwnd, nullptr, x, y, 0, 0,
                  SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
@@ -1871,10 +1876,11 @@ void Window_setFullscreen(Window *window, bool fullscreen) {
         mi.cbSize = sizeof(mi);
         GetMonitorInfoW(hm, &mi);
         (*window).fullscreen = true;
+        RECT monitor = (*mi).rcMonitor;
         SetWindowPos(hwnd, HWND_TOPMOST,
-                     (*mi).rcMonitor.left, (*mi).rcMonitor.top,
-                     (int) ((*mi).rcMonitor.right - (*mi).rcMonitor.left),
-                     (int) ((*mi).rcMonitor.bottom - (*mi).rcMonitor.top),
+                     monitor.left, monitor.top,
+                     (int) (monitor.right - monitor.left),
+                     (int) (monitor.bottom - monitor.top),
                      SWP_FRAMECHANGED | SWP_NOACTIVATE);
     } else {
         LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);

@@ -249,8 +249,9 @@ void Console_setIo(Console *self, const ConsoleIo *io, void *ioCtx) {
         memset(&(*self).io, 0, sizeof(ConsoleIo));
         return;
     }
-    (*self).io = *io;
-    (*self).io.ctx = ioCtx;
+    ConsoleIo *slot = &(*self).io;
+    (*slot) = *io;
+    (*slot).ctx = ioCtx;
 }
 
 // GETTERS (PUBLIC & PRIVATE)
@@ -275,5 +276,6 @@ const char *Console_getWorkDir(const Console *self) {
 const ConsoleIo *Console_getIo(const Console *self) {
     if (!self)
         return nullptr;
-    return (*self).io.ctx ? &(*self).io : nullptr;
+    const ConsoleIo *slot = &(*self).io;
+    return (*slot).ctx ? slot : nullptr;
 }

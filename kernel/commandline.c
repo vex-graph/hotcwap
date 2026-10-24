@@ -184,8 +184,9 @@ bool CommandLine_open(CommandLine *self) {
 void CommandLine_close(CommandLine *self) {
     if (self == nullptr || !(*self).opened)
         return;
-    if ((*self).io.close != nullptr)
-        (*self).io.close((*self).io.ctx);
+    CommandLineIo io = (*self).io;
+    if (io.close != nullptr)
+        io.close(io.ctx);
     free((*self).cells);
     (*self).cells = nullptr;
     (*self).capacity = 0;
@@ -196,12 +197,17 @@ void CommandLine_close(CommandLine *self) {
 }
 
 bool CommandLine_revalidate(CommandLine *self) {
-    if (self == nullptr || !(*self).opened || (*self).io.size == nullptr) {
+    if (self == nullptr || !(*self).opened) {
+        THROW("CommandLine revalidate: not open");
+        return false;
+    }
+    CommandLineIo io = (*self).io;
+    if (io.size == nullptr) {
         THROW("CommandLine revalidate: not open");
         return false;
     }
     size_t w = (*self).width, h = (*self).height;
-    if (!(*self).io.size((*self).io.ctx, &w, &h) || w == 0 || h == 0) {
+    if (!io.size(io.ctx, &w, &h) || w == 0 || h == 0) {
         if ((*self).refusalCount == 0)
             THROW("CommandLine resized: device reported %zux%zu", w, h);
         if ((*self).refusalCount != SIZE_MAX)
@@ -218,9 +224,10 @@ bool CommandLine_revalidate(CommandLine *self) {
         return false;
     }
     // A resize repaints in one step: redraw the app, then present once.
-    if ((*self).hasApp && (*self).app.draw != nullptr) {
+    CommandLineApp app = (*self).app;
+    if ((*self).hasApp && app.draw != nullptr) {
         (*self).active = true;
-        bool ok = (*self).app.draw((*self).app.ctx, self);
+        bool ok = app.draw(app.ctx, self);
         (*self).active = false;
         if (!ok)
             return false;
@@ -229,9 +236,12 @@ bool CommandLine_revalidate(CommandLine *self) {
 }
 
 bool CommandLine_present(CommandLine *self) {
-    if (self == nullptr || !(*self).opened || (*self).cells == nullptr || (*self).io.present == nullptr)
+    if (self == nullptr || !(*self).opened || (*self).cells == nullptr)
         return false;
-    return (*self).io.present((*self).io.ctx, (*self).cells, (*self).width, (*self).height);
+    CommandLineIo io = (*self).io;
+    if (io.present == nullptr)
+        return false;
+    return io.present(io.ctx, (*self).cells, (*self).width, (*self).height);
 }
 
 bool CommandLine_setApp(CommandLine *self, const CommandLineApp *app) {
@@ -253,8 +263,9 @@ bool CommandLine_hasApp(const CommandLine *self) {
 bool CommandLine_detachApp(CommandLine *self) {
     if (self == nullptr || !(*self).hasApp)
         return false;
-    if ((*self).app.detach != nullptr)
-        (*self).app.detach((*self).app.ctx);
+    CommandLineApp app = (*self).app;
+    if (app.detach != nullptr)
+        app.detach(app.ctx);
     memset(&(*self).app, 0, sizeof((*self).app));
     (*self).hasApp = false;
     return true;
@@ -266,12 +277,13 @@ bool CommandLine_tick(CommandLine *self) {
         return false;
     }
     CommandLineEvent ev;
+    CommandLineApp app = (*self).app;
     if (CommandLine_poll(self, 0, &ev)) {
         if (ev.kind == COMMANDLINE_EVENT_RESIZE)
             return CommandLine_revalidate(self);   // revalidate draws + presents
-        if ((*self).app.input != nullptr) {
+        if (app.input != nullptr) {
             (*self).active = true;
-            bool ok = (*self).app.input((*self).app.ctx, self, &ev);
+            bool ok = app.input(app.ctx, self, &ev);
             (*self).active = false;
             if (!ok) {
                 atomic_store(&(*self).cancel, true);
@@ -280,7 +292,7 @@ bool CommandLine_tick(CommandLine *self) {
         }
     }
     (*self).active = true;
-    bool drew = (*self).app.draw((*self).app.ctx, self);
+    bool drew = app.draw(app.ctx, self);
     (*self).active = false;
     if (!drew)
         return false;
@@ -294,6 +306,7 @@ int CommandLine_run(CommandLine *self) {
     }
     atomic_store(&(*self).running, true);
     int rc = 0;
+    CommandLineApp app = (*self).app;
     while (!atomic_load(&(*self).cancel)) {
         CommandLineEvent ev;
         if (CommandLine_poll(self, 50, &ev)) {
@@ -301,9 +314,9 @@ int CommandLine_run(CommandLine *self) {
                 if (!CommandLine_revalidate(self)) { rc = 1; break; }
                 continue;   // revalidate already drew + presented
             }
-            if ((*self).app.input != nullptr) {
+            if (app.input != nullptr) {
                 (*self).active = true;
-                bool ok = (*self).app.input((*self).app.ctx, self, &ev);
+                bool ok = app.input(app.ctx, self, &ev);
                 (*self).active = false;
                 if (!ok) {
                     atomic_store(&(*self).cancel, true);
@@ -312,7 +325,7 @@ int CommandLine_run(CommandLine *self) {
             }
         }
         (*self).active = true;
-        bool drew = (*self).app.draw((*self).app.ctx, self);
+        bool drew = app.draw(app.ctx, self);
         (*self).active = false;
         if (!drew || !CommandLine_present(self)) {
             rc = 1;
@@ -352,15 +365,21 @@ bool CommandLine_clear(CommandLine *self) {
 bool CommandLine_poll(CommandLine *self, int timeoutMs, CommandLineEvent *out) {
     if (out != nullptr)
         *out = (CommandLineEvent) { .kind = COMMANDLINE_EVENT_NONE };
-    if (self == nullptr || out == nullptr || !(*self).opened || (*self).io.poll == nullptr)
+    if (self == nullptr || out == nullptr || !(*self).opened)
         return false;
-    return (*self).io.poll((*self).io.ctx, timeoutMs, out);
+    CommandLineIo io = (*self).io;
+    if (io.poll == nullptr)
+        return false;
+    return io.poll(io.ctx, timeoutMs, out);
 }
 
 bool CommandLine_setMouseReporting(CommandLine *self, bool enabled) {
-    if (self == nullptr || !(*self).opened || (*self).io.setMouse == nullptr)
+    if (self == nullptr || !(*self).opened)
         return false;
-    return (*self).io.setMouse((*self).io.ctx, enabled);
+    CommandLineIo io = (*self).io;
+    if (io.setMouse == nullptr)
+        return false;
+    return io.setMouse(io.ctx, enabled);
 }
 
 void CommandLine_setTitle(CommandLine *self, const char *title) {
