@@ -395,6 +395,7 @@ void Window_setLocation(Window *window, int x, int y) {
 // Return zero content-origin coordinates for the unimplemented backend.
 /** Writes zero content-origin coordinates to supplied outputs. */
 void Window_getContentOrigin(const Window *window, int *outX, int *outY) {
+    (void) window;
     if (outX) *outX = 0;
     if (outY) *outY = 0;
 }
@@ -424,6 +425,7 @@ uint32_t Window_getMonitorId(const Window *window) {
 ;;INCOMPLETE // GetWindowRect top-left; zeros until implemented.
 /** Writes zero location coordinates to supplied outputs. */
 void Window_getLocation(const Window *window, int *outX, int *outY) {
+    (void) window;
     if (outX) *outX = 0;
     if (outY) *outY = 0;
 }
