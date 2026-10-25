@@ -177,7 +177,7 @@
  */
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__linux__) || defined(__unix__)
 
 ;;PLATFORM_EXCLUSIVE("Windows")
 ;;INTENTION("Fills the Window API seam (window.h) on Windows so the engine can be built there; mirrors the legacy windowsWindow.java.")
