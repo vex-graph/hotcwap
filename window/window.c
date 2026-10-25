@@ -11,8 +11,10 @@
 // and a GetMessage/PeekMessage-TranslateMessage-DispatchMessage event loop.
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "window/window.h"
+#include "window/traffic_light.h"
 #include "annotation/definition.h"
 #include "annotation/overview.h"
 #include "annotation/getter.h"
@@ -997,6 +999,79 @@ bool Window_macOS_getLiquidGlass(const Window *window, WindowLiquidGlassDesc *ou
     (void) window;
     (void) out;
     return false;
+}
+
+struct TrafficLight {
+    void *window;
+    bool lightVisible[TRAFFIC_LIGHT_COUNT];
+    float lightOX;
+    float lightOY;
+};
+
+/** Fallback stub: creates traffic-light adapter for non-macOS platforms. */
+TrafficLight *TrafficLight_create(void *nsWindowHandle) {
+    TrafficLight *self = (TrafficLight*) calloc(1, sizeof(TrafficLight));
+    if (self == nullptr)
+        return nullptr;
+    (*self).window = nsWindowHandle;
+    (*self).lightVisible[TRAFFIC_LIGHT_CLOSE] = true;
+    (*self).lightVisible[TRAFFIC_LIGHT_MINIATURIZE] = true;
+    (*self).lightVisible[TRAFFIC_LIGHT_ZOOM] = true;
+    (*self).lightOX = 0.0f;
+    (*self).lightOY = 0.0f;
+    return self;
+}
+
+/** Fallback stub: destroys traffic-light adapter. */
+void TrafficLight_destroy(TrafficLight *self) {
+    if (self != nullptr)
+        free(self);
+}
+
+/** Fallback stub: resetBase no-op. */
+void TrafficLight_resetBase(TrafficLight *self) {
+    (void) self;
+}
+
+/** Fallback stub: refresh no-op. */
+void TrafficLight_refresh(TrafficLight *self) {
+    (void) self;
+}
+
+/** Fallback stub: sets button visibility. */
+void TrafficLight_setButtonVisible(TrafficLight *self, TrafficLightButton button, bool visible) {
+    if (self == nullptr || (int) button < 0 || button >= TRAFFIC_LIGHT_COUNT)
+        return;
+    (*self).lightVisible[button] = visible;
+}
+
+/** Fallback stub: reports button visibility. */
+bool TrafficLight_isButtonVisible(const TrafficLight *self, TrafficLightButton button) {
+    if (self == nullptr || (int) button < 0 || button >= TRAFFIC_LIGHT_COUNT)
+        return false;
+    return (*self).lightVisible[button];
+}
+
+/** Fallback stub: setHeaderPosition no-op. */
+void TrafficLight_setHeaderPosition(TrafficLight *self, float x, float y) {
+    (void) self;
+    (void) x;
+    (void) y;
+}
+
+/** Fallback stub: getHeaderPosition writes zero coordinates. */
+void TrafficLight_getHeaderPosition(const TrafficLight *self, float *outX, float *outY) {
+    (void) self;
+    if (outX)
+        *outX = 0.0f;
+    if (outY)
+        *outY = 0.0f;
+}
+
+/** Fallback stub: setFloating no-op. */
+void TrafficLight_setFloating(TrafficLight *self, bool floating) {
+    (void) self;
+    (void) floating;
 }
 
 #endif
