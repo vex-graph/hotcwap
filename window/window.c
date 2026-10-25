@@ -336,6 +336,20 @@ float Window_heightPoints(const Window *window) {
     return 0.0f;
 }
 
+// Return zero width because this stub backend has no physical display window.
+/** Returns zero client width because geometry is not tracked. */
+int Window_width(Window *window) {
+    (void) window;
+    return 0;
+}
+
+// Return zero height because this stub backend has no physical display window.
+/** Returns zero client height because geometry is not tracked. */
+int Window_height(Window *window) {
+    (void) window;
+    return 0;
+}
+
 // Expose the window width through the viewport compatibility accessor.
 /** Returns the window pixel width through the shared accessor. */
 int Window_viewportWidth(const Window *window) {
