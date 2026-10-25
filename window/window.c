@@ -708,4 +708,295 @@ void *Window_nativeHandle(const Window *window) {
     return nullptr;
 }
 
+Window *Window_0(void) {
+    return nullptr;
+}
+
+Window *Window_1(const char *title) {
+    (void) title;
+    return nullptr;
+}
+
+Window *Window_3(const char *title, int width, int height) {
+    (void) title;
+    (void) width;
+    (void) height;
+    return nullptr;
+}
+
+Window *Window_new(const WindowDesc *desc) {
+    (void) desc;
+    return nullptr;
+}
+
+uint32_t Window_id(Window *window) {
+    (void) window;
+    return 0;
+}
+
+uint64_t Window_sizeGeneration(Window *window) {
+    (void) window;
+    return 0;
+}
+
+bool Window_isFocused(Window *window) {
+    (void) window;
+    return false;
+}
+
+void Window_focus(Window *window) {
+    (void) window;
+}
+
+bool Window_isKeyEnabled(const Window *window) {
+    (void) window;
+    return true;
+}
+
+void Window_setKeyEnabled(Window *window, bool enabled) {
+    (void) window;
+    (void) enabled;
+}
+
+bool Window_isLiveResizing(const Window *window) {
+    (void) window;
+    return false;
+}
+
+void Window_show(Window *window) {
+    (void) window;
+}
+
+void Window_hide(Window *window) {
+    (void) window;
+}
+
+void Window_close(Window *window) {
+    Window_setShouldClose(window, true);
+}
+
+void Window_waitEvents(Window *window, int timeoutMs) {
+    (void) window;
+    (void) timeoutMs;
+}
+
+void Window_bringToFront(Window *window) {
+    (void) window;
+}
+
+void Window_attachChild(Window *parent, Window *child) {
+    (void) parent;
+    (void) child;
+}
+
+void Window_detachChild(Window *parent, Window *child) {
+    (void) parent;
+    (void) child;
+}
+
+void Window_setAlwaysOnTop(Window *window, bool onTop) {
+    (void) window;
+    (void) onTop;
+}
+
+void Window_setClickThrough(Window *window, bool clickThrough) {
+    (void) window;
+    (void) clickThrough;
+}
+
+void Window_setShadow(Window *window, bool shadow) {
+    (void) window;
+    (void) shadow;
+}
+
+void Window_setMovableByBackground(Window *window, bool movable) {
+    (void) window;
+    (void) movable;
+}
+
+void Window_setOpacity(Window *window, float opacity) {
+    (void) window;
+    (void) opacity;
+}
+
+void Window_setTransparentBackground(Window *window, bool transparent) {
+    (void) window;
+    (void) transparent;
+}
+
+void Window_setBackdropBlur(Window *window, float radius) {
+    (void) window;
+    (void) radius;
+}
+
+void Window_setGravityTopLeft(Window *window) {
+    (void) window;
+}
+
+void Window_setCursorLocked(Window *window, bool locked) {
+    (void) window;
+    (void) locked;
+}
+
+void *Window_metalLayer(Window *window) {
+    (void) window;
+    return nullptr;
+}
+
+void Window_setBottomLayer(Window *window, void *layer) {
+    (void) window;
+    (void) layer;
+}
+
+void *Window_getBottomLayer(const Window *window) {
+    (void) window;
+    return nullptr;
+}
+
+void Window_setTopLayer(Window *window, void *layer) {
+    (void) window;
+    (void) layer;
+}
+
+void *Window_getTopLayer(const Window *window) {
+    (void) window;
+    return nullptr;
+}
+
+void Window_orderLayers(Window *window) {
+    (void) window;
+}
+
+bool Window_attachPanes(Window *window, Panel *panel, int width, int height) {
+    (void) window;
+    (void) panel;
+    (void) width;
+    (void) height;
+    return false;
+}
+
+bool Window_resizePanes(Window *window, Panel *panel, int width, int height) {
+    (void) window;
+    (void) panel;
+    (void) width;
+    (void) height;
+    return false;
+}
+
+void Window_compositePanes(Window *window, Panel *contentPanel) {
+    (void) window;
+    (void) contentPanel;
+}
+
+void Window_addKeyAdapter(Window *window, const KeyHandler *adapter) {
+    (void) window;
+    (void) adapter;
+}
+
+bool Window_removeKeyAdapter(Window *window, const KeyHandler *adapter) {
+    (void) window;
+    (void) adapter;
+    return false;
+}
+
+void Window_addMouseAdapter(Window *window, const MouseHandler *adapter) {
+    (void) window;
+    (void) adapter;
+}
+
+bool Window_removeMouseAdapter(Window *window, const MouseHandler *adapter) {
+    (void) window;
+    (void) adapter;
+    return false;
+}
+
+void Window_addTouchAdapter(Window *window, const TouchHandler *adapter) {
+    (void) window;
+    (void) adapter;
+}
+
+bool Window_removeTouchAdapter(Window *window, const TouchHandler *adapter) {
+    (void) window;
+    (void) adapter;
+    return false;
+}
+
+void Window_dispatchEvents(Window *window) {
+    (void) window;
+}
+
+void Window_workerPresentBegin(void) {
+}
+
+void Window_workerPresentEnd(void) {
+}
+
+bool Window_present(Window *window, const Buffer *frame) {
+    (void) window;
+    (void) frame;
+    return false;
+}
+
+void Window_presentRGBA(Window *window, const void *pixels, size_t stride, int width, int height) {
+    (void) window;
+    (void) pixels;
+    (void) stride;
+    (void) width;
+    (void) height;
+}
+
+void *Window_createPresentSurface(Window *window, int widthPx, int heightPx) {
+    (void) window;
+    (void) widthPx;
+    (void) heightPx;
+    return nullptr;
+}
+
+void Window_destroyPresentSurface(Window *window, void *surface) {
+    (void) window;
+    (void) surface;
+}
+
+void Window_presentSurface(Window *window, void *surface) {
+    (void) window;
+    (void) surface;
+}
+
+void *Window_presentSurfaceContents(const Window *window) {
+    (void) window;
+    return nullptr;
+}
+
+bool Window_readPresentSurface(Window *window, void *surface, void *destRGBA, size_t destStride) {
+    (void) window;
+    (void) surface;
+    (void) destRGBA;
+    (void) destStride;
+    return false;
+}
+
+bool Window_writePNG(const void *pixels, size_t stride, int width, int height, const char *path) {
+    (void) pixels;
+    (void) stride;
+    (void) width;
+    (void) height;
+    (void) path;
+    return false;
+}
+
+bool Window_macOS_hasLiquidGlass(void) {
+    return false;
+}
+
+void Window_macOS_setLiquidGlass(Window *window, const WindowLiquidGlassDesc *desc) {
+    (void) window;
+    (void) desc;
+}
+
+bool Window_macOS_getLiquidGlass(const Window *window, WindowLiquidGlassDesc *out) {
+    (void) window;
+    (void) out;
+    return false;
+}
+
 #endif
