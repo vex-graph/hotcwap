@@ -75,9 +75,11 @@
 
 // Per-platform application-install base, overridable at build time
 // (custom deployments) or by $VEX_MANIFEST at runtime (test seam).
-#if defined(_WIN32)
+#include "platform/platform.h"
+
+#if defined(VEX_PLATFORM_WINDOWS)
 #  define APPLICATION_PATH "%LOCALAPPDATA%"
-#elif defined(__APPLE__)
+#elif defined(VEX_PLATFORM_APPLE)
 #  define APPLICATION_PATH "Library/Application Support"
 #else
 #  define APPLICATION_PATH ".local/share"
