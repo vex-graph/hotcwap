@@ -1,6 +1,8 @@
 #include "annotation/definition.h"
 #include "annotation/overview.h"
 
+#include "platform/platform.h"
+
 ;;DEFINITION
 /** The install ledger remembers an application's install state outside its
  * install tree, so uninstalling the tree does not erase machine history. The
@@ -55,7 +57,7 @@ struct Ledger {
 // --- the state directory (per user, outside any install tree) ----------------
 
 static bool state_dir(char *dest, size_t cap) {
-#if defined(_WIN32)
+#if defined(VEX_PLATFORM_WINDOWS)
     const char *base = getenv("LOCALAPPDATA");
     if (base == nullptr || *base == '\0')
         base = getenv("USERPROFILE");
@@ -63,7 +65,7 @@ static bool state_dir(char *dest, size_t cap) {
         return false;
     int n = snprintf(dest, cap, "%s/vexgraph/ledger", base);
     return n > 0 && (size_t) n < cap;
-#elif defined(__APPLE__)
+#elif defined(VEX_PLATFORM_APPLE)
     const char *home = getenv("HOME");
     if (home == nullptr || *home == '\0')
         return false;
