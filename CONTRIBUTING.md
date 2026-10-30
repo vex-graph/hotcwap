@@ -46,7 +46,7 @@ This boilerplate is **not** an accident, nor is it a misunderstanding of idiomat
 
 All architectural rules and style invariants are governed by the central constitution:
 
-- **[Compressed law list](../../../metadata/gists/preferences/gist.md)** and [published preferences](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a); read only relevant laws with `./tools/prefs`.
+- **[Compressed law list](../../metadata/gists/preferences/gist.md)** and [published preferences](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a); read only relevant laws with `./tools/prefs`.
 - **[hotcwap-preferences.md](hotcwap-preferences.md)** (repo-local mirror binding hotcwap)
 
 Under the Living Documentation Law, update affected contracts in the same cycle.

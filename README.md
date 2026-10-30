@@ -12,7 +12,7 @@ runtime with a working macOS backend, not a finished multi-platform host.
   ladder), and the window abstraction with the macOS AppKit backend
   (`window/window_cocoa.m`) proven on this host.
 - **Recorded proof is partial.** Only a minority of hotcwap files carry executed
-  evidence in `../../../metadata/gists/test-checklist.md`. Owner tests exist under `../../../tests/hotcwap`
+  evidence in `../../metadata/gists/test-checklist.md`. Owner tests exist under `../../../tests/hotcwap`
   (loader, kernel, window families), but most rows are still **unrecorded** — a
   green `b build` plus the presence of owner tests is not the same as recorded
   per-file evidence.
