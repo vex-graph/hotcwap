@@ -10,7 +10,9 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#if defined(_WIN32)
+#include "platform/platform.h"
+
+#if defined(VEX_PLATFORM_WINDOWS)
 #  include <io.h>
 #  include <windows.h>
 #  define RENAME(a, b) (MoveFileExA((a), (b), MOVEFILE_REPLACE_EXISTING) != 0)
@@ -329,7 +331,7 @@ static bool generation_write(const char *path, uint64_t value) {
 static bool dir_mkdir(const char *path) {
     if (dir_exists(path))
         return true;
-#if defined(_WIN32)
+#if defined(VEX_PLATFORM_WINDOWS)
     int rc = _mkdir(path);
 #else
     int rc = mkdir(path, 0755);
@@ -401,7 +403,7 @@ static bool resolve_base(char *out, size_t cap, const char *root) {
         root = "appdata";
 
     if (strcmp(root, "/") == 0) {
-#if defined(_WIN32)
+#if defined(VEX_PLATFORM_WINDOWS)
         snprintf(out, cap, "%s", "C:");
 #else
         snprintf(out, cap, "%s", "/");
@@ -421,7 +423,7 @@ static bool resolve_base(char *out, size_t cap, const char *root) {
             snprintf(out, cap, "%s", override);
             return true;
         }
-#if defined(_WIN32)
+#if defined(VEX_PLATFORM_WINDOWS)
         const char *local = getenv("LOCALAPPDATA");
         if (local && *local != '\0')
             snprintf(out, cap, "%s", local);
@@ -429,7 +431,7 @@ static bool resolve_base(char *out, size_t cap, const char *root) {
             const char *profile = getenv("USERPROFILE");
             snprintf(out, cap, "%s", (profile && *profile != '\0') ? profile : home);
         }
-#elif defined(__APPLE__)
+#elif defined(VEX_PLATFORM_APPLE)
         snprintf(out, cap, "%s/%s", home, APPLICATION_PATH);
 #else
         const char *xdg = getenv("XDG_DATA_HOME");
