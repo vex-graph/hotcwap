@@ -5,7 +5,7 @@
 ## 0. Constitution Link (supreme)
 - [gist.md](https://gist.github.com/vex-graph/4132a6c45cb6d3797c3e8eff2e94035a#file-gist-md) — the compressed law list, mirrored in this workspace at `../../metadata/gists/preferences/gist.md`. It is the only normative law text; `../../../metadata/gists/preferences/PREFERENCES.md` carries the rationale and is never ingested whole. Numbers are slice addresses inside one file, never law identity: cite by Title.
 - All universal laws bind this repository. Read one on demand from the workspace root: `./tools/prefs law "<title>"`, `./tools/prefs section "<section>"`, `./tools/prefs repo <name>`.
-- Exclusive `hotcwap` (R1 Dynamic Module Reloader / ABI Airlock) preferences. R0 comprises Lifetime (Kernel Host: OS windowing, process, event loop, capabilities). R1 comprises Relational Engine (permanent memory bank, storage, cache, I/O) and Hotcwap (optional live reload substrate). R1 stays resident for process lifetime. Hotcwap manages safe dylib loading, trampoline routing, and retirement rings without modifying host memory layouts.
+- Exclusive `hotcwap` (R1 Dynamic Module Reloader / ABI Airlock) preferences. R0 comprises Lifetime (Kernel Host: OS windowing, process, event loop, clock, capabilities) **plus Relational Engine** (the ecosystem's single allocator, storage, cache, I/O) — both statically linked into the host and never swapped. Hotcwap lives above R0 as the optional reload substrate: it loads and swaps the one R2–R4 engine image (`vexspoke` + `graphvex` + `darling-framework`) and each R5–R6 superapp image, never R0. Hotcwap manages safe dylib loading and ABA-safe retirement rings without modifying host memory layouts.
 
 ## 1. Repo-Local Law Index (Binding Matrix)
 
@@ -14,8 +14,49 @@ Universal laws are inherited from the compressed constitution (`../../metadata/g
 | Law Title | Scope | Enforcement |
 | :--- | :--- | :--- |
 | **Dynamic Module ABI Verification Law** | R1 Dynamic Airlock | Mandatory for `hotcwap` |
+| **Two Load Units Law (R0 static, R2-R4 one image, apps separate)** | R1 Dynamic Airlock | Mandatory for `hotcwap` |
 
 ## 2. Exclusive Repo-Local Laws (FULL PROSE RESTATEMENT)
+
+### Two Load Units Law (R0 static, R2-R4 one image, apps separate)
+
+#### Definition:
+Three tiers, **two load units**. Tier 1 — `lifetime` + `relational-engine` (R0) — is
+statically linked into the host executable and is never a dylib: it exports its
+symbols, and nothing ever swaps it. Tier 2 is **one engine image** holding
+`vexspoke` + `graphvex` + `darling-framework` (R2–R4), loaded with
+`-undefined dynamic_lookup` against the host's exported symbols. Tier 3 is **one
+dylib per superapp** (R5–R6, e.g. `semicolon`), also `-undefined dynamic_lookup`,
+swapped independently of the engine image. All loads are `RTLD_NOW|RTLD_LOCAL`;
+a path-unique copy per generation defeats the dyld path cache.
+
+#### The Why:
+A dylib loaded once and never unloaded is static linking with an extra failure
+mode: if tier 1 failed to `dlopen`, the host would have no allocator and could
+not even `THROW`, and every `Memory_alloc` would pay an extra indirection on the
+hottest path. R2–R4 interlock — darling calls graphvex calls vexspoke — so
+splitting them per repo would recreate cross-layer version skew inside the swap
+layer; one image is one ABI gate and one swap.
+
+#### The Rule:
+1. **R0 is a link unit, not a load unit.** `lifetime` and `relational-engine` are
+   compiled into the host executable. A swap request naming R0 is a hard refusal,
+   never an unload. R0 changes only by versioned cold release plus restart.
+2. **One engine image.** `vexspoke`, `graphvex` and `darling-framework` ship as a
+   single dylib with a single contract version. The host rejects a version
+   mismatch before committing any swap.
+3. **Apps are separate dylibs.** Each superapp is its own image, versioned against
+   the engine image's contract, and swappable without touching the engine.
+4. **Symbols resolve downward only.** Engine and app images resolve R0 through
+   `-undefined dynamic_lookup`; the host exports (`-rdynamic` on Linux, default on
+   macOS). No dylib statically links R0 — that is the shadow-owner defect.
+5. **Cross-image state is host-owned.** Values that must survive a swap live in
+   host-allocated flat state blocks; a swapped image re-resolves handles on
+   attach. No pointer from a retired image is ever dereferenced.
+6. **Never `dlclose` an image carrying Objective-C metadata** in a live session;
+   the retire ring keeps old images mapped through the grace window instead.
+
+---
 
 ### Dynamic Module ABI Verification Law
 

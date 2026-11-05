@@ -52,16 +52,16 @@ typedef enum {
 // Module handle — opaque
 typedef struct HotModule HotModule;
 
-// SLOT RECORD owned by HotModule's cold admission; descriptors are supplied by
-// a trusted local builder/release source, not by model output. Exact filenames.
-typedef struct HotSectionDigest {
-    const char *filename;
-    uint8_t sha256[32];
-} HotSectionDigest;
+// HotSectionDigest lives in its own file (Single Class Per File Law).
+#include "hot/section_digest.h"
 
 // INTENTIONAL(vex): this cold-update ABI number describes the module export
 // contract, not a manifest generation or an vexgraph-ecosystem-gitrepo class identity.
-#define HOT_COLD_ABI_VERSION 1ULL
+// Bumped 1 -> 2 when the required export table was renamed from the
+// Vulkan-era `VkModuleGetTrampolines` to `Hot_getExports`; a payload built
+// against the old name is now rejected at admission instead of loading a
+// module the loader cannot enumerate.
+#define HOT_COLD_ABI_VERSION 2ULL
 
 // Explicit stop-the-world transaction. Caller stops admission and excludes ALL
 // module callers/callbacks until return, including pending external sessions.
@@ -80,7 +80,7 @@ HotModule *Hot_init(const char *library);
 
 // Shutdown the hotloader: bounded-join the save worker FIRST (its cond wait
 // is capped), then close every module, drain the retire ring, free.
-void HotShutdown(HotModule *hot);
+void Hot_shutdown(HotModule *hot);
 
 // Poll for updates. Call once per frame from the _main loop (_main thread
 // only). Reloads bin/current/<library> when the generation stamp moves;
@@ -95,17 +95,17 @@ HotResult Hot_poll(HotModule *hot, uint32_t *loaded_count);
 // Get a function pointer by name (trampoline table lookup, stable until the
 // next swap of its module).
 typedef void (*HotFn)(void);
-HotFn Hot_get_symbol(HotModule *hot, const char *name);
+HotFn Hot_getSymbol(HotModule *hot, const char *name);
 
 // Last-seen generation of bin/current/<library> (0 before any successful
 // load/swap). Getters: after a swap Hot_poll advances this; it equals
 // MANIFEST_GENERATION(<library>) when the loader and ladder are in sync.
-uint64_t Hot_get_generation(const HotModule *hot);
+uint64_t Hot_getGeneration(const HotModule *hot);
 // A disk rollback failure is unresolved: do not resume admission/retry in-process.
 bool Hot_requiresRecovery(const HotModule *hot);
 
 // Get the last error string (for diagnostics).
-const char *Hot_last_error(HotModule *hot);
+const char *Hot_getLastError(HotModule *hot);
 
 // Phase-1 lifecycle: graceful per-module teardown + state handoff.
 // Shutdown calls the module's Hot_shutdown_module (if exported) on the
@@ -114,14 +114,14 @@ const char *Hot_last_error(HotModule *hot);
 // into the new handle after load. Modules without Hot_save / Hot_restore
 // simply skip the handoff. Returns false when the module is unknown,
 // unloaded, or the symbol is missing / buffer too small.
-void Hot_shutdown_module(HotModule *hot, const char *module_name);
-bool Hot_save_module(HotModule *hot, const char *module_name, void *buf, size_t cap, size_t *outLen);
-bool Hot_restore_module(HotModule *hot, const char *module_name, const void *buf, size_t len);
+void Hot_shutdownModule(HotModule *hot, const char *module_name);
+bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, size_t cap, size_t *outLen);
+bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf, size_t len);
 
 // Phase-2 migration: translate a state blob saved by oldVersion into the
 // current module's schema. Calls the module's Hot_migrate export; false
 // when the module is unknown or exports no migrator.
-bool Hot_migrate_module(HotModule *hot, const char *module_name, const char *oldVersion,
+bool Hot_migrateModule(HotModule *hot, const char *module_name, const char *oldVersion,
                         const void *oldBuf, size_t oldLen, void *newBuf, size_t newCap, size_t *outLen);
 
 #endif

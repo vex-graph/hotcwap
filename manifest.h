@@ -17,26 +17,30 @@
 // SCREAMING_CASE surface, hotcwap-style:
 //   MANIFEST(MANIFEST_APP_DATA, "vexgraph", "semicolon") // ONE-TIME init
 //   MANIFEST_LIBRARY("vexspoke", "graphvex", ..., 0)     // register library keys
-//   MANIFEST_UPDATE("graphvex", payloadDir)              // stage bin/new/graphvex/
+//   MANIFEST_UPDATE("graphvex", payloadDir)              // stage manifest/new/images/graphvex/
 //   MANIFEST_PROMOTE()                                   // per-library slide
 //   MANIFEST_ENSURE()  MANIFEST_REFLECT(...)  MANIFEST_IS_FIRST_RUN()
 //
 // Per-app layout under APPLICATION_DATA + org + <app>:
-//   manifest.json         library catalog {name, version, org, libraries{}}
-//   bin/backward/<lib>    oldest retained set (rollback), per library
-//   bin/previous/<lib>    prior generation (rollback), per library
-//   bin/current/<lib>     the runnable set — what the launcher dlopens
-//   bin/current/<lib>.generation  per-library generation stamp (N+1 per promote)
-//   bin/new/<lib>         staged future set (downloads land here)
-//   cache/                cache system
+//   manifest.json                       library catalog {name, version, org, libraries{}}
+//   manifest/backward/images/<lib>/     oldest retained set (rollback), per library
+//   manifest/previous/images/<lib>/     prior generation (rollback), per library
+//   manifest/current/images/<lib>/      the runnable set — what the launcher dlopens
+//   manifest/current/images/<lib>.generation   per-library generation stamp (N+1 per promote)
+//   manifest/new/images/<lib>/          staged future set (downloads land here)
+//   manifest/<slot>/readme.md           per-slot changelog (written, never required)
+//   cache/                              cache system
+//
+// One slot = one generation set. Inside a slot, `images/` holds one directory
+// per registered library, and readme.md records what that slot received.
 //
 // The <lib>.generation stamp is THE hot-swap trigger: MANIFEST_REFLECT seeds
 // it (1) on first install and MANIFEST_PROMOTE bumps it for every promoted
 // library. The loader (hot/hot.c) compares its last-seen generation against
-// the stamp and reloads bin/current/<lib> when it moves — the rename slide IS
-// the swap, so no watch-dir and no clone step exist (the retired MODE-1
-// hot/ watch dir is gone; see the SPIR-V Shader Deployment-era install docs
-// history for the old design).
+// the stamp and reloads manifest/current/images/<lib> when it moves — the
+// rename slide IS the swap, so no watch-dir and no clone step exist (the
+// retired MODE-1 hot/ watch dir is gone; see the SPIR-V Shader Deployment-era
+// install docs history for the old design).
 //
 // manifest.json is the plain JSON catalog any runtime may edit (it is the
 // downloader's entry point, not R1's own state). Example:
@@ -75,7 +79,7 @@
 
 // Per-platform application-install base, overridable at build time
 // (custom deployments) or by $VEX_MANIFEST at runtime (test seam).
-#include "platform/platform.h"
+#include "lifetime/platform.h"
 
 #if defined(VEX_PLATFORM_WINDOWS)
 #  define APPLICATION_PATH "%LOCALAPPDATA%"
@@ -223,10 +227,14 @@ bool ManifestPath_ladderDir(ManifestLadder slot, char *dest, size_t cap, bool cr
 // manifest never mounted.
 bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *dest, size_t cap, bool create);
 
-// The per-library generation stamp <locked root>/bin/current/<lib>.generation
+// The per-library generation stamp <locked root>/manifest/current/images/<lib>.generation
 // — a plain base-10 integer (0 when never written). The live re-loader
 // compares this against its last-seen generation to trigger a hot swap.
 bool ManifestPath_generationFile(const char *library, char *dest, size_t cap);
+
+// The per-slot changelog <locked root>/manifest/<slot>/readme.md. Written on
+// reflect/update/promote; never required for a mount or a swap.
+bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, size_t cap);
 
 // cache/ dir under the locked root.
 bool ManifestPath_cacheDir(char *dest, size_t cap);

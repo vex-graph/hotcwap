@@ -48,7 +48,7 @@ In conventional game architectures, window management and simulation loops are t
 
 * **OS Window Decoupling**: Thread 0 hosts the native platform window (`AppKit` / Cocoa on macOS; X11/Wayland on Linux). The display link, event pump, and surface layer persist indefinitely across module reloads.
 * **Decoupled Window Backend**: A window is a dumb surface + callback bridge (`window/window_cocoa.m`) — pure AppKit, zero Vulkan/Metal. It answers `Window_*` calls from graphvex and R5 apps through the per-window `WindowEvent` lifecycle registry; the GPU-era composite/attach surface is retained as `;;INTENTION` stubs until the darling compositor migrates onto the bridge (the Window Decoupling Law).
-* **Microsecond Dynamic Reloader**: Swaps loaded `.dylib` function pointer dispatch tables with zero frame interruption. `Hot_poll` (`hot/hot.c`) compares the manifest's per-library generation stamp (`bin/current/<library>.generation`) against its last-seen generation; on a move it snapshots the running module state on an off-thread save worker (the Bounded Wait Law), then on the next poll dlopens + fail-closed verifies the whole new set (`VkModuleGetTrampolines` on every section), rehydrates the saved state into the STAGED images BEFORE any commit, then atomically swaps trampolines. A new image whose `Hot_restore` rejects its saved state rolls the whole swap back (automated state rollback) — the old generation stays live and the stamp never advances, so the next poll self-heals once a fixed set is promoted. The install-ladder authority + `manifest.json` catalog (`hot/manifest.h/.c`) gates what lands in `bin/current/<library>` via the `MANIFEST_UPDATE`/`MANIFEST_PROMOTE` verbs — the loader trusts the ladder placement. Vulkan module loading lives in graphvex (`src/vulkan/vk_loader.c`) — hotcwap holds no Vulkan code.
+* **Microsecond Dynamic Reloader**: Swaps loaded `.dylib` function pointer dispatch tables with zero frame interruption. `Hot_poll` (`hot/hot.c`) compares the manifest's per-library generation stamp (`bin/current/<library>.generation`) against its last-seen generation; on a move it snapshots the running module state on an off-thread save worker (the Bounded Wait Law), then on the next poll dlopens + fail-closed verifies the whole new set (`Hot_getExports` on every section), rehydrates the saved state into the STAGED images BEFORE any commit, then atomically swaps trampolines. A new image whose `Hot_restore` rejects its saved state rolls the whole swap back (automated state rollback) — the old generation stays live and the stamp never advances, so the next poll self-heals once a fixed set is promoted. The install-ladder authority + `manifest.json` catalog (`hot/manifest.h/.c`) gates what lands in `bin/current/<library>` via the `MANIFEST_UPDATE`/`MANIFEST_PROMOTE` verbs — the loader trusts the ladder placement. Vulkan module loading lives in graphvex (`src/vulkan/vk_loader.c`) — hotcwap holds no Vulkan code.
 * **Low-Latency Event Pump**: Decoupled polling for keyboard, mouse, and touch in bounded 25ms slices (the Bounded Wait Law), mirrored into the vexspoke input rings per-window.
 
 ---
@@ -86,7 +86,7 @@ Kernel_destroy(k);                 // 7b. end the kernel (stops apps, arenas LAS
 ### Build
 
 ```sh
-./tools/b build hotcwap # from the Vexgraph workspace root
+./tools/b.sh build hotcwap # from the Vexgraph workspace root
 ```
 
 ### Standalone autonomy

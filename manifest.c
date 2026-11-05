@@ -1,5 +1,5 @@
-#include "hot/manifest.h"
-#include "hot/ledger.h"
+#include "manifest.h"
+#include "ledger.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -9,8 +9,9 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <time.h>
 
-#include "platform/platform.h"
+#include "lifetime/platform.h"
 
 #if defined(VEX_PLATFORM_WINDOWS)
 #  include <io.h>
@@ -23,11 +24,7 @@
 #  define UNLINK(a)    unlink(a)
 #endif
 
-#include "annotation/definition.h"
-#include "annotation/overview.h"
-#include "annotation/getter.h"
-#include "annotation/setter.h"
-#include "annotation/intention.h"
+#include "annotation/annotation.h"
 #include "exception/throw.h"
 
 ;;DEFINITION
@@ -154,7 +151,9 @@
 
 #define MANIFEST_BUF_CAP 1024
 #define MANIFEST_JSON_CAP 16384
-#define MANIFEST_BIN "bin"
+#define MANIFEST_BIN "manifest"
+#define MANIFEST_IMAGES "images"
+#define MANIFEST_SLOT_README "readme.md"
 #define MANIFEST_CACHE "cache"
 #define MANIFEST_JSON "manifest.json"
 #define MANIFEST_GENERATION_EXT ".generation"
@@ -197,9 +196,15 @@ static bool valid_name(const char *name) {
         return false;
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
         return false;
+    // A BARE "~" is the home ROOT alias, never a segment: admitting it here
+    // would make MANIFEST("~", ...) ambiguous between home and a literal
+    // directory named "~". A tilde inside a longer NAME is a real POSIX
+    // directory ("~v"), so it is admitted.
+    if (strcmp(name, "~") == 0)
+        return false;
     for (size_t i = 0; i < n; i++) {
         unsigned char c = (unsigned char) name[i];
-        if (!(isalnum(c) || c == '-' || c == '_' || c == '.' || c == ' '))
+        if (!(isalnum(c) || c == '-' || c == '_' || c == '.' || c == ' ' || c == '~'))
             return false;
     }
     return true;
@@ -1174,6 +1179,58 @@ bool MANIFEST_ENSURE(void) {
     return dir_mkdir(path);
 }
 
+/**
+ * Appends one update record to a slot's readme.md changelog.
+ *
+ *   manifest/<slot>/readme.md
+ *
+ * Best effort by design: a readme that cannot be written never fails a mount,
+ * a stage or a promotion. The ledger and the generation stamp stay the
+ * authority; this file is the human-readable "what changed in this slot".
+ */
+static bool slot_readme_append(ManifestLadder slot, const char *library,
+                               uint64_t generation, const char *phase) {
+    char path[MANIFEST_BUF_CAP];
+    if (!ManifestPath_slotReadme(slot, path, sizeof(path)))
+        return false;
+
+    bool fresh = true;
+    FILE *probe = fopen(path, "rb");
+    if (probe != nullptr) {
+        fresh = false;
+        fclose(probe);
+    }
+
+    FILE *f = fopen(path, "ab");
+    if (f == nullptr)
+        return false;
+
+    if (fresh) {
+        static const char *slot_names[] = SLOT_NAMES;
+        fprintf(f, "# manifest slot: %s\n\n"
+                   "Changelog of every image the loader staged or promoted into "
+                   "this slot. Written by manifest.c; never read by the loader.\n\n",
+                slot_names[slot]);
+    }
+
+    char stamp[32] = "unknown";
+    time_t now = time(nullptr);
+    struct tm tmUtc;
+    if (now != (time_t) -1 && gmtime_r(&now, &tmUtc) != nullptr)
+        strftime(stamp, sizeof(stamp), "%Y-%m-%dT%H:%M:%SZ", &tmUtc);
+
+    const ManifestLibrary *lib = catalog_lookup(library);
+    fprintf(f, "## %s\n"
+               "- phase: %s\n"
+               "- generation: %llu\n"
+               "- sections: %u\n"
+               "- at: %s\n\n",
+            library, phase, (unsigned long long) generation,
+            lib != nullptr ? (*lib).sectionCount : 0u, stamp);
+    fclose(f);
+    return true;
+}
+
 /** Seeds a library catalog and its current payload from the supplied source directory. */
 bool MANIFEST_REFLECT(const char *library, const char *sourceDir) {
     if (!g_mounted || !valid_name(library) || sourceDir == nullptr)
@@ -1247,6 +1304,9 @@ bool MANIFEST_REFLECT(const char *library, const char *sourceDir) {
     fputs("vexgraph install reflection\n", f);
     fclose(f);
 
+    (void) slot_readme_append(MANIFEST_LADDER_CURRENT, library,
+                              generation_read(genFile), "reflected");
+
     // The install moment: record it in the machine-scoped ledger (out of tree,
     // survives UNINSTALL).
     Ledger *ledger = Ledger_open(g_org, g_name);
@@ -1297,7 +1357,12 @@ bool MANIFEST_UPDATE(const char *library, const char *payloadDir) {
     remove_ladder_dir(staged);
     if (!mkdir_p(staged))
         return false;
-    return copy_tree(payloadDir, staged, 0);
+    if (!copy_tree(payloadDir, staged, 0))
+        return false;
+
+    (void) slot_readme_append(MANIFEST_LADDER_NEW, library,
+                              MANIFEST_GENERATION(library) + 1u, "staged");
+    return true;
 }
 
 bool MANIFEST_ALLOWS(const char *library, const char *filename) {
@@ -1340,6 +1405,8 @@ bool MANIFEST_PROMOTE_LIBRARY(const char *library) {
     if (!generation_write(stamp, generation + 1))
         goto reject;
     remove_ladder_dir(backup);
+    (void) slot_readme_append(MANIFEST_LADDER_CURRENT, library,
+                              generation + 1u, "promoted");
     return true;
 reject:
     // Caller has stopped all consumers; never silently proceed after undo fails.
@@ -1430,6 +1497,8 @@ bool MANIFEST_PROMOTE(void) {
             return false;
         if (!generation_write(genFile, generation_read(genFile) + 1))
             return false;
+        (void) slot_readme_append(MANIFEST_LADDER_CURRENT, name,
+                                  generation_read(genFile), "promoted");
     }
     return true;
 }
@@ -1487,12 +1556,16 @@ bool ManifestPath_push(ManifestPath *self, const char *segment, bool create) {
     if (self == nullptr || segment == nullptr || (*self).buf == nullptr)
         return false;
     size_t seg_len = strlen(segment);
-    size_t need = (*self).len + 1 + seg_len + 1;
+    // A root that is already "/" must not get a second separator, or every
+    // path under it starts "//" (MANIFEST("/", ...) is a legal mount).
+    size_t sep = ((*self).len == 1 && (*self).buf[0] == '/') ? 0u : 1u;
+    size_t need = (*self).len + sep + seg_len + 1;
     if (need > (*self).cap)
         return false;
-    (*self).buf[(*self).len] = '/';
-    memcpy((*self).buf + (*self).len + 1, segment, seg_len);
-    (*self).len += 1 + seg_len;
+    if (sep)
+        (*self).buf[(*self).len] = '/';
+    memcpy((*self).buf + (*self).len + sep, segment, seg_len);
+    (*self).len += sep + seg_len;
     (*self).buf[(*self).len] = '\0';
     if (create && !mkdir_p((*self).buf))
         return false;
@@ -1534,7 +1607,7 @@ bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *des
     if (!ManifestPath_ladderDir(slot, slotDir, sizeof(slotDir), create))
         return false;
     size_t slot_len = strlen(slotDir);
-    if (slot_len + 1 + strlen(library) + 1 > cap)
+    if (slot_len + 1 + strlen(MANIFEST_IMAGES) + 1 + strlen(library) + 1 > cap)
         return false;
     memcpy(dest, slotDir, slot_len);
     dest[slot_len] = '\0';
@@ -1542,6 +1615,8 @@ bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *des
     p.buf = dest;
     p.cap = cap;
     p.len = slot_len;
+    if (!ManifestPath_push(&p, MANIFEST_IMAGES, create))
+        return false;
     return ManifestPath_push(&p, library, create);
 }
 
@@ -1553,15 +1628,34 @@ bool ManifestPath_generationFile(const char *library, char *dest, size_t cap) {
         return false;
     if (!valid_name(library))
         return false;
-    // Sibling of the current/<lib> dir (bin/current/<lib>.generation): sits
-    // OUTSIDE the rotated subfolders so the ladder rename slide never sweeps it.
+    // Lives beside the library's image dir, inside the slot's images/ folder:
+    //   manifest/current/images/<lib>.generation
+    // Inside images/ on purpose — it must move with the slot on promotion and
+    // must never be read as a section (the loader only scans images/<lib>/).
     char slotDir[MANIFEST_BUF_CAP];
     if (!ManifestPath_ladderDir(MANIFEST_LADDER_CURRENT, slotDir, sizeof(slotDir), false))
         return false;
-    size_t n = strlen(slotDir) + 1 + strlen(library) + strlen(MANIFEST_GENERATION_EXT) + 1;
+    size_t n = strlen(slotDir) + 1 + strlen(MANIFEST_IMAGES) + 1 + strlen(library) +
+               strlen(MANIFEST_GENERATION_EXT) + 1;
     if (n > cap)
         return false;
-    snprintf(dest, cap, "%s/%s%s", slotDir, library, MANIFEST_GENERATION_EXT);
+    snprintf(dest, cap, "%s/%s/%s%s", slotDir, MANIFEST_IMAGES, library, MANIFEST_GENERATION_EXT);
+    return true;
+}
+
+/** The per-slot changelog: manifest/<slot>/readme.md (written, not required). */
+bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, size_t cap) {
+    if (dest == nullptr || cap == 0)
+        return false;
+    if (!g_mounted)
+        return false;
+    char slotDir[MANIFEST_BUF_CAP];
+    if (!ManifestPath_ladderDir(slot, slotDir, sizeof(slotDir), false))
+        return false;
+    size_t n = strlen(slotDir) + 1 + strlen(MANIFEST_SLOT_README) + 1;
+    if (n > cap)
+        return false;
+    snprintf(dest, cap, "%s/%s", slotDir, MANIFEST_SLOT_README);
     return true;
 }
 

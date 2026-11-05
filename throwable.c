@@ -1,4 +1,4 @@
-#include "hot/throwable.h"
+#include "throwable.h"
 #include "window/window.h"
 #include "struct/chunked_list.h"
 
@@ -6,10 +6,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "annotation/definition.h"
-#include "annotation/overview.h"
-#include "annotation/getter.h"
-#include "annotation/setter.h"
+#include "annotation/annotation.h"
 
 ;;DEFINITION
 /**

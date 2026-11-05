@@ -157,7 +157,7 @@ compares `MANIFEST_GENERATION(<library>)` (reads
    Bounded Wait Law) that snapshots the current images' module state via
    `Hot_save` and returns `loaded==0` — hot loops never pay serialization.
 2. The next poll dlopens EVERY section of the new current set and verifies
-   the whole library fail-closed (`dlopen` + `VkModuleGetTrampolines` on each
+   the whole library fail-closed (`dlopen` + `Hot_getExports` on each
    before any commit), then **restores** the saved blobs into the STAGED
    images BEFORE any commit — a section whose `Hot_restore` rejects its blob
    (or a snapshotted slot with no `Hot_restore`) rolls the WHOLE swap back
@@ -167,7 +167,7 @@ compares `MANIFEST_GENERATION(<library>)` (reads
    it atomically swap the trampoline table and retire the old handles into
    the grace ring.
 
-Modules expose exports via the struct contract (`VkModuleGetTrampolines`); the
+Modules expose exports via the struct contract (`Hot_getExports`); the
 retired JSON `Hot_manifest` ABI gate is gone — the ladder placement is the
 gate. Zero restart, `current/` stays pinned during the swap.
 

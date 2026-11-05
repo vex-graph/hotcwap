@@ -1,7 +1,6 @@
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
 
-#include "platform/platform.h"
+#include "lifetime/platform.h"
 
 ;;DEFINITION
 /** The install ledger remembers an application's install state outside its
@@ -37,7 +36,7 @@
  * is correctness state only and is neither tamper-resistant nor a secret store.
  * ======================================================================== */
 
-#include "hot/ledger.h"
+#include "ledger.h"
 
 #include <ctype.h>
 #include <errno.h>
