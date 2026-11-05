@@ -1,0 +1,10 @@
+{
+  "name": "install",
+  "version": "0.1.0",
+  "org": "example",
+  "libraries": {
+    "core": ["core"],
+    "app": ["app"],
+    "plugin": ["plugin"]
+  }
+}
