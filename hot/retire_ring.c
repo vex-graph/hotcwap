@@ -1,12 +1,9 @@
-#include "hot/hot_retire.h"
+#include "hot/retire_ring.h"
 
 #include <dlfcn.h>
 #include <stddef.h>
 
-#include "annotation/definition.h"
-#include "annotation/overview.h"
-#include "annotation/getter.h"
-#include "annotation/setter.h"
+#include "annotation/annotation.h"
 
 ;;DEFINITION
 /**

@@ -1,13 +1,9 @@
 #include <math.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-#include "annotation/definition.h"
-#include "annotation/overview.h"
-#include "annotation/getter.h"
-#include "annotation/setter.h"
+#include "annotation/annotation.h"
 
 ;;DEFINITION
 /**
@@ -71,7 +67,7 @@
  *   - Hot_restore(buf, len)                   : Rehydrate module state blob
  *   - Hot_migrate(oldVer, oldB, l, newB, c, outL) : Forward schema migration
  *   - Hot_manifest(void)                      : JSON descriptor string export
- *   - VkModuleGetTrampolines(outCount)        : Exported trampoline table
+ *   - Hot_getExports(outCount)        : Exported trampoline table
  *   - hot_behavior_pulse(nowSeconds)          : Trigonometric pulse math
  *   - hot_behavior_bar(w, h, pulse, outH, outW) : Layout bar dimension math
  *   - hot_texture_path(void)                  : Relative texture asset path
@@ -205,13 +201,13 @@ const char *Hot_manifest(void) {
         "\"hot_texture_path\", \"hot_behavior_set_phase_bias\", "
         "\"hot_behavior_get_phase_bias\", \"Hot_init_module\", "
         "\"Hot_shutdown_module\", \"Hot_save\", \"Hot_restore\", \"Hot_migrate\", "
-        "\"VkModuleGetTrampolines\"], "
+        "\"Hot_getExports\"], "
         "\"dependencies\": []}";
 }
 
 // LOADER ABI EXPORT — the trampoline table the manifest loader (hot/hot.c)
 // adopts on dlopen. Row layout MUST match hot.c's contract:
-//   { const char *name; void *fn; } entries[], count via VkModuleGetTrampolines.
+//   { const char *name; void *fn; } entries[], count via Hot_getExports.
 typedef struct HotModuleExport {
     const char *name;
     void *fn;
@@ -237,7 +233,7 @@ static const HotModuleExport s_exports[] = {
 };
 
 /** Returns this module's static trampoline export table and optional row count. */
-const void *VkModuleGetTrampolines(uint32_t *outCount) {
+const void *Hot_getExports(uint32_t *outCount) {
     if (outCount)
         (*outCount) = (uint32_t) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;

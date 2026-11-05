@@ -4,7 +4,7 @@
 #include <stdatomic.h>
 #include <stdint.h>
 
-#include "hot/manifest.h"
+#include "manifest.h"
 
 // hot/hot_trampoline.h — Per-instance atomic function-pointer table.
 //

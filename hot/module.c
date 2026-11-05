@@ -1,7 +1,7 @@
-#include "hot/hot.h"
-#include "hot/manifest.h"
-#include "hot/hot_trampoline.h"
-#include "hot/hot_retire.h"
+#include "hot.h"
+#include "manifest.h"
+#include "hot/trampoline_table.h"
+#include "hot/retire_ring.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,11 +17,7 @@
 #include "security/crypto.h"
 #include "exception/throw.h"
 
-#include "annotation/definition.h"
-#include "annotation/overview.h"
-#include "annotation/getter.h"
-#include "annotation/setter.h"
-#include "annotation/intention.h"
+#include "annotation/annotation.h"
 
 ;;DEFINITION
 /**
@@ -52,7 +48,7 @@
  *   it snapshots the CURRENT generation's module state on an off-thread save
  *   worker (hot loops never pay the serialization), then on a later pass it
  *   dlopens every section of the new current set, verifies the WHOLE library
- *   fail-closed (dlopen + VkModuleGetTrampolines on every section before any
+ *   fail-closed (dlopen + Hot_getExports on every section before any
  *   commit), rehydrates the saved blobs into the STAGED images BEFORE any
  *   commit, then atomically swaps the trampoline table and retires the old
  *   handles into the grace ring. A section whose Hot_restore rejects its blob
@@ -102,7 +98,7 @@
  *     HotModuleInternal *mod;   // resolved slot (created if new)
  *     char path[HOT_PATH_LEN];  // dylib path
  *     void *handle;             // dlopened, not yet adopted
- *     const void *trampolines;  // VkModuleGetTrampolines table
+ *     const void *trampolines;  // Hot_getExports table
  *     uint32_t trampolineCount; // entries
  *
  *   Segregated (own files, see their overviews):
@@ -118,21 +114,21 @@
  *   - (none)
  *
  * Public Core Functions: (.h)
- *   - HotShutdown(hot)                       : Join save worker and drain modules
+ *   - Hot_shutdown(hot)                       : Join save worker and drain modules
  *   - Hot_poll(hot, loaded_count)            : Two-phase generational reload poll
  *   - Hot_updateCold(hot, payloadDir, digests, count, loadedCount)
  *       Caller-excluded synchronous checksum/ABI/save/restore transaction;
  *       candidates discarded on failure, running generation unchanged.
- *   - Hot_shutdown_module(hot, name)         : Invoke module teardown export
- *   - Hot_save_module(hot, name, b, c, len)  : Capture module state blob
- *   - Hot_restore_module(hot, name, buf, l)  : Rehydrate state into new image
- *   - Hot_migrate_module(hot, name, ...)     : Schema migration across versions
+ *   - Hot_shutdownModule(hot, name)         : Invoke module teardown export
+ *   - Hot_saveModule(hot, name, b.sh, c, len)  : Capture module state blob
+ *   - Hot_restoreModule(hot, name, buf, l)  : Rehydrate state into new image
+ *   - Hot_migrateModule(hot, name, ...)     : Schema migration across versions
  *
  * Private Core Functions: (.c static)
- *   - find_module(hot, name)                 : Lookup internal module slot
- *   - snapshot_begin(hot)                    : Wake save worker for off-thread capture
+ *   - HotModuleInternal_find(hot, name)                 : Lookup internal module slot
+ *   - HotSaveSlot_begin(hot)                    : Wake save worker for off-thread capture
  *   - snapshot_modules(hot)                  : Worker body capturing state blobs
- *   - save_worker_main(arg)                  : Dedicated save worker thread entry
+ *   - HotSaveSlot_workerMain(arg)                  : Dedicated save worker thread entry
  *   - perform_swap(hot)                      : Stage, verify, restore, and swap dylibs
  *
  * Public Setters: (.h)
@@ -142,10 +138,10 @@
  *   - (none)
  *
  * Public Getters: (.h)
- *   - Hot_get_symbol(hot, name)              : Lookup function pointer in trampolines
- *   - Hot_get_generation(hot)                : Last committed generation counter
+ *   - Hot_getSymbol(hot, name)              : Lookup function pointer in trampolines
+ *   - Hot_getGeneration(hot)                : Last committed generation counter
  *   - Hot_requiresRecovery(hot)              : Unresolved rollback blocks cold retry
- *   - Hot_last_error(hot)                    : Last diagnostic error message
+ *   - Hot_getLastError(hot)                    : Last diagnostic error message
  *
  * Private Getters: (.c static)
  *   - (none)
@@ -167,7 +163,7 @@
             "frame boundaries and old images stay mapped in the retire ring "
             "throughout, so this window is safe. Full-library atomicity is "
             "enforced on the VERIFY side (no section is adopted unless every "
-            "section dlopens + exports VkModuleGetTrampolines); the commit side "
+            "section dlopens + exports Hot_getExports); the commit side "
             "is per-row assignment per the Conflict Triage Law.")
 
 ;;INTENTION("A library's declared section set is stable across its life (the "
@@ -175,7 +171,7 @@
             "against undeclared stems). A section that vanishes from a promoted "
             "current set keeps its old slot + handle mapped (never retired) so "
 "stale trampolines never dangle — the unshared image lingers until "
-             "HotShutdown. Removing a section is a library-uninstall event "
+             "Hot_shutdown. Removing a section is a library-uninstall event "
              "handled by a full restart, per the Conflict Triage Law.")
 
 ;;INTENTION("Restore-before-commit (#8.5 Automated State Rollback): a "
@@ -188,71 +184,20 @@
             "intentionally drops Hot_save/Hot_restore must re-scope its "
             "state handoff first.")
 
-#define HOT_MAX_MODULES 32
-#define HOT_PATH_LEN 512
-#define HOT_SAVE_SLOT_CAP 4096
-#define HOT_SAVE_WAIT_NS (25 * 1000 * 1000) // 25ms cond-wait slice (the Bounded Wait Law)
-
-typedef struct {
-    char name[HOT_MANIFEST_MAX_NAME];
-    char path[HOT_PATH_LEN];
-    void *handle;                    // dlopen handle
-    bool loaded;                     // is currently loaded
-} HotModuleInternal;
-
-typedef struct {
-    char name[HOT_MANIFEST_MAX_NAME];
-    alignas(16) uint8_t buf[HOT_SAVE_SLOT_CAP];
-    size_t len;
-} HotSaveSlot;
-
-typedef struct {
-    HotModuleInternal *mod;          // resolved slot (created if new)
-    char path[HOT_PATH_LEN];         // dylib path
-    void *handle;                    // dlopened, not yet adopted
-    const void *trampolines;         // VkModuleGetTrampolines table
-    uint32_t trampolineCount;        // entries
-} HotStagedSection;
-
-typedef struct HotModule {
-    char library[HOT_MANIFEST_MAX_NAME];
-    uint64_t generation;
-    HotModuleInternal modules[HOT_MAX_MODULES];
-    uint32_t module_count;
-    char last_error[256];
-    HotTrampolineTable trampolines;  // per-instance symbols (no cross-app collision)
-    HotRetireRing retireRing;        // per-instance generational close
-    // Off-thread state-save worker
-    pthread_t saveThread;
-    pthread_mutex_t saveLock;
-    pthread_cond_t saveCond;
-    bool saveWorkerLive;
-    bool saveCancel;                 // under saveLock
-    bool saveRequested;              // under saveLock
-    bool saveDone;                   // under saveLock
-    bool swapPending;                // _main-thread only
-    HotSaveSlot saveSlots[HOT_MAX_MODULES];
-    size_t saveCount;
-    const HotSectionDigest *coldDigests;
-    size_t coldCount;
-    bool recoveryRequired;
-} HotModule;
+// The loader's internal model lives one class per file under hot/:
+//   hot/limits.h            named bounds
+//   hot/module_internal.h   HotModuleInternal  — one loaded section row
+//   hot/save_slot.h         HotSaveSlot        — one serialized module state
+//   hot/staged_section.h    HotStagedSection   — one section between dlopen and commit
+//   hot/module.h            HotModule          — the loader instance itself
+#include "hot/module.h"
+#include "hot/internal.h"
+#include "hot/staged_section.h"
 
 // CONSTRUCTORS — HotModule owns the module slots below; row mechanics live
 // in hot_trampoline.c, generational close in hot_retire.c.
 
-// Find a module slot by section stem.
-static HotModuleInternal *find_module(HotModule *hot, const char *name) {
-    for (uint32_t i = 0; i < (*hot).module_count; i++) {
-        if (strcmp((*hot).modules[i].name, name) == 0)
-            return &(*hot).modules[i];
-    }
-    return nullptr;
-}
-
 // Off-thread state-save worker (HOT_SAVE_WAIT_NS cond-wait cycle, cancel-aware).
-static void *save_worker_main(void *arg);
-
 // CONSTRUCTORS (PUBLIC & PRIVATE)
 /** Creates a loader bound to a mounted manifest library and starts its save worker. */
 HotModule *Hot_init(const char *library) {
@@ -273,7 +218,7 @@ HotModule *Hot_init(const char *library) {
     pthread_mutex_init(&(*hot).saveLock, nullptr);
     pthread_cond_init(&(*hot).saveCond, nullptr);
     (*hot).saveWorkerLive = (pthread_create(&(*hot).saveThread, nullptr,
-                                            save_worker_main, hot) == 0);
+                                            HotSaveSlot_workerMain, hot) == 0);
     if (!(*hot).saveWorkerLive) {
         pthread_mutex_destroy(&(*hot).saveLock);
         pthread_cond_destroy(&(*hot).saveCond);
@@ -285,28 +230,12 @@ HotModule *Hot_init(const char *library) {
 
 // CORE FUNCTIONS (PUBLIC & PRIVATE)
 
-// Stop the save worker FIRST (bounded join — its cond wait is capped at
-// HOT_SAVE_WAIT_NS), so no thread touches module handles after shutdown
-// begins. Then close modules + drain the retire ring, per the Teardown
-// Order Law (worker resources die before the handles they read).
-static void save_worker_shutdown(HotModule *hot) {
-    if (!(*hot).saveWorkerLive)
-        return;
-    pthread_mutex_lock(&(*hot).saveLock);
-    (*hot).saveCancel = true;
-    (*hot).saveRequested = false;
-    pthread_cond_signal(&(*hot).saveCond);
-    pthread_mutex_unlock(&(*hot).saveLock);
-    pthread_join((*hot).saveThread, nullptr);
-    (*hot).saveWorkerLive = false;
-}
-
 /** Stops the state-save worker, closes loaded modules, drains retired handles, and frees. */
-void HotShutdown(HotModule *hot) {
+void Hot_shutdown(HotModule *hot) {
     if (!hot)
         return;
 
-    save_worker_shutdown(hot);
+    HotSaveSlot_workerShutdown(hot);
     pthread_mutex_destroy(&(*hot).saveLock);
     pthread_cond_destroy(&(*hot).saveCond);
 
@@ -331,84 +260,8 @@ void HotShutdown(HotModule *hot) {
     free(hot);
 }
 
-// Runs ON THE SAVE WORKER thread. Copies each loaded module's state blob via
-// its Hot_save export into saveSlots, then publishes saveDone. The module
-// images being snapshotted are the CURRENT (old-generation) handles — they
-// stay mapped in the retire ring until the swap commits, so the worker always
-// reads live state.
-static void snapshot_modules(HotModule *hot) {
-    (*hot).saveCount = 0;
-    for (uint32_t i = 0; i < (*hot).module_count && (*hot).saveCount < HOT_MAX_MODULES; i++) {
-        HotModuleInternal *mod = &(*hot).modules[i];
-        if (!(*mod).loaded || !(*mod).handle)
-            continue;
-        typedef bool (*SaveFn)(void *, size_t, size_t *);
-        SaveFn save = (SaveFn) dlsym((*mod).handle, "Hot_save");
-        if (!save)
-            continue;
-        HotSaveSlot *slot = &(*hot).saveSlots[(*hot).saveCount];
-        size_t n = 0;
-        if (save((*slot).buf, sizeof((*slot).buf), &n) && n > 0 && n <= sizeof((*slot).buf)) {
-            strncpy((*slot).name, (*mod).name, HOT_MANIFEST_MAX_NAME - 1);
-            (*slot).name[HOT_MANIFEST_MAX_NAME - 1] = '\0';
-            (*slot).len = n;
-            (*hot).saveCount++;
-        }
-    }
-}
-
-// The worker loop: sleeps on saveCond (capped at HOT_SAVE_WAIT_NS so every
-// path reaches the exit check bounded — the Bounded Wait Law), snapshots on
-// request, exits on cancel.
-static void *save_worker_main(void *arg) {
-    HotModule *hot = (HotModule*) arg;
-    pthread_mutex_lock(&(*hot).saveLock);
-    for (;;) {
-        struct timespec deadline;
-        clock_gettime(CLOCK_REALTIME, &deadline);
-        deadline.tv_nsec += HOT_SAVE_WAIT_NS;
-        if (deadline.tv_nsec >= 1000000000L) {
-            deadline.tv_sec++;
-            deadline.tv_nsec -= 1000000000L;
-        }
-        int rc = pthread_cond_timedwait(&(*hot).saveCond, &(*hot).saveLock, &deadline);
-        if ((*hot).saveCancel)
-            break;
-        if (rc == 0 || rc == ETIMEDOUT) {
-            if ((*hot).saveRequested) {
-                (*hot).saveRequested = false;
-                snapshot_modules(hot);
-                (*hot).saveDone = true;
-            }
-        }
-    }
-    pthread_mutex_unlock(&(*hot).saveLock);
-    return nullptr;
-}
-
-// Ask the worker to snapshot the CURRENT generation's state. Returns true
-// when any loaded module exports Hot_save (a snapshot was requested); false
-// when none do (the caller swaps directly — nothing to preserve).
-static bool snapshot_begin(HotModule *hot) {
-    bool any = false;
-    for (uint32_t i = 0; i < (*hot).module_count && !any; i++) {
-        HotModuleInternal *mod = &(*hot).modules[i];
-        if ((*mod).loaded && (*mod).handle && dlsym((*mod).handle, "Hot_save") != nullptr)
-            any = true;
-    }
-    if (!any)
-        return false;
-    pthread_mutex_lock(&(*hot).saveLock);
-    (*hot).saveRequested = true;
-    (*hot).saveDone = false;
-    (*hot).saveCount = 0;
-    pthread_cond_signal(&(*hot).saveCond);
-    pthread_mutex_unlock(&(*hot).saveLock);
-    return true;
-}
-
 // Load a whole manifest library generation and commit it. Phase A verifies
-// EVERY section (dlopen + VkModuleGetTrampolines present) before anything is
+// EVERY section (dlopen + Hot_getExports present) before anything is
 // touched — on any failure every staged handle is closed and the previous
 // generation stays live, untouched. Phase B rehydrates the saved blobs into
 // the STAGED images BEFORE any commit; a rejecting Hot_restore rolls the
@@ -416,79 +269,6 @@ static bool snapshot_begin(HotModule *hot) {
 // old handles, adopt new, swap trampoline rows. Generation only advances on
 // full success, so a failed swap re-enters the handshake on the next poll
 // and self-heals once the payload is fixed.
-static uint32_t s_loadSerial = 0;
-
-static bool hot_mkdir_p(const char *path) {
-    char tmp[HOT_PATH_LEN];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
-    if (len == 0 || len >= sizeof(tmp))
-        return false;
-    for (size_t i = 1; i < len; i++) {
-        if (tmp[i] != '/')
-            continue;
-        tmp[i] = '\0';
-        if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
-            return false;
-        tmp[i] = '/';
-    }
-    if (mkdir(path, 0755) != 0 && errno != EEXIST)
-        return false;
-    return true;
-}
-
-static bool hot_copy_file(const char *src, const char *dst) {
-    FILE *in = fopen(src, "rb");
-    if (!in)
-        return false;
-    FILE *out = fopen(dst, "wb");
-    if (!out) {
-        fclose(in);
-        return false;
-    }
-    unsigned char buf[8192];
-    size_t n = 0;
-    bool ok = true;
-    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
-        if (fwrite(buf, 1, n, out) != n) {
-            ok = false;
-            break;
-        }
-    }
-    if (ferror(in))
-        ok = false;
-    fclose(out);
-    fclose(in);
-    return ok;
-}
-
-// Hash the private load copy, not a previously checked pathname. Stable trusted
-// parents still required; this is not protection against same-user mutation.
-static bool digest_matches(const char *path, const uint8_t expected[32]) {
-    FILE *file = fopen(path, "rb");
-    if (file == nullptr)
-        return false;
-    CryptoSha256 hash;
-    Crypto_sha256Init(&hash);
-    uint8_t buffer[4096], actual[32];
-    size_t n;
-    while ((n = fread(buffer, 1, sizeof(buffer), file)) > 0)
-        Crypto_sha256Update(&hash, buffer, n);
-    bool ok = !ferror(file);
-    if (fclose(file) != 0)
-        ok = false;
-    Crypto_sha256Final(&hash, actual);
-    return ok && memcmp(actual, expected, sizeof(actual)) == 0;
-}
-
-static const HotSectionDigest *cold_digest(HotModule *hot, const char *name) {
-    for (size_t i = 0; i < (*hot).coldCount; ++i) {
-        const HotSectionDigest *digest = &(*hot).coldDigests[i];
-        if ((*digest).filename != nullptr && strcmp((*digest).filename, name) == 0)
-            return digest;
-    }
-    return nullptr;
-}
-
 /** Stages and validates every section, restores saved state, then commits the generation. */
 static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint32_t *outLoaded) {
     HotTrampolineTable *table = &(*hot).trampolines;
@@ -502,7 +282,9 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
         return HOT_ERROR_FILE_NOT_FOUND;
     }
 
-    // Phase A — verify (fail-closed: all-or-nothing).
+    // Phase A — verify (fail-closed: all-or-nothing). Each section is mapped
+    // and validated by hot/staged_section.c; a rejection closes everything
+    // staged so far and leaves the live generation untouched.
     HotStagedSection staged[HOT_MAX_MODULES];
     uint32_t stagedCount = 0;
     struct dirent *ent;
@@ -511,10 +293,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
         // their filename before closing the iterator.
         char name[HOT_PATH_LEN];
         snprintf(name, sizeof(name), "%s", (*ent).d_name);
-        size_t nlen = strlen(name);
-        bool is_dylib = (nlen > 6 && strcmp(name + nlen - 6, ".dylib") == 0) ||
-                        (nlen > 3 && strcmp(name + nlen - 3, ".so") == 0);
-        if (!is_dylib)
+        if (!HotStagedSection_isImage(name))
             continue;
         if (!MANIFEST_ALLOWS((*hot).library, name)) {
             closedir(dir);
@@ -532,140 +311,32 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
             return HOT_ERROR_OUT_OF_MEMORY;
         }
 
-        char path[HOT_PATH_LEN];
-        int plen = snprintf(path, sizeof(path), "%s/%s", libDir, name);
-        if (plen < 0 || (size_t) plen >= sizeof(path)) {
+        HotResult admitted = HotStagedSection_admit(hot, libDir, name, &staged[stagedCount]);
+        if (admitted != HOT_OK) {
             closedir(dir);
             for (uint32_t i = 0; i < stagedCount; i++)
                 dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error),
-                     "Section path '%s/%s' truncated", libDir, name);
-            return HOT_ERROR_FILE_NOT_FOUND;
+            return admitted;
         }
 
-        // dyld caches a loaded image by path, so a replaced file at the SAME
-        // path is NOT re-read — the swap would silently keep the old code.
-        // Load from a per-swap unique copy (Generation-Unique Load Path) so
-        // every generation is a genuinely fresh image.
-        char loadDir[HOT_PATH_LEN];
-        char loadPath[HOT_PATH_LEN];
-        if ((*hot).coldCount) {
-            snprintf(loadDir, sizeof(loadDir), "%s", libDir);
-            snprintf(loadPath, sizeof(loadPath), "%s", path);
-        } else {
-            snprintf(loadDir, sizeof(loadDir), "%s/cache/load/%s/%u",
-                     MANIFEST_ROOT(), (*hot).library, ++s_loadSerial);
-            snprintf(loadPath, sizeof(loadPath), "%s/%s", loadDir, name);
-        }
-        if (!(*hot).coldCount && (!hot_mkdir_p(loadDir) || !hot_copy_file(path, loadPath))) {
-            unlink(loadPath);
-            rmdir(loadDir);
+        // Two sections resolving to the same identity make dispatch
+        // order-dependent; reject the complete candidate before any restore
+        // or target publication.
+        bool duplicate = false;
+        for (uint32_t i = 0; i < stagedCount; ++i)
+            if (staged[i].mod == staged[stagedCount].mod)
+                duplicate = true;
+        if (duplicate) {
             closedir(dir);
+            dlclose(staged[stagedCount].handle);
             for (uint32_t i = 0; i < stagedCount; i++)
                 dlclose(staged[i].handle);
             snprintf((*hot).last_error, sizeof((*hot).last_error),
-                     "cannot stage a unique load copy for %s", name);
-            return HOT_ERROR_FILE_NOT_FOUND;
-        }
-
-        const HotSectionDigest *digest = cold_digest(hot, name);
-        if ((*hot).coldCount && (digest == nullptr || !digest_matches(loadPath, (*digest).sha256))) {
-            unlink(loadPath);
-            rmdir(loadDir);
-            closedir(dir);
-            for (uint32_t i = 0; i < stagedCount; ++i)
-                dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error), "checksum mismatch: %s", name);
+                     "duplicate section identity: %s", name);
             return HOT_ERROR_ABI_MISMATCH;
         }
-        void *handle = dlopen(loadPath, RTLD_NOW | RTLD_LOCAL);
-        // dlopen retains the mapped image; this unique private copy is transport
-        // only, not a resource root. Modules use manifest/host resource paths.
-        // Reclaim it on success and rejection rather than accumulating releases.
-        unlink(loadPath);
-        rmdir(loadDir);
-        if (!handle) {
-            closedir(dir);
-            for (uint32_t i = 0; i < stagedCount; i++)
-                dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error),
-                     "dlopen(%s) failed: %s", loadPath, dlerror());
-            return HOT_ERROR_DLOPEN_FAILED;
-        }
 
-        typedef const void *(*TrampolinesFn)(uint32_t*);
-        const uint64_t *abi = (*hot).coldCount ? dlsym(handle, "Hot_cold_abi") : nullptr;
-        if ((*hot).coldCount && (abi == nullptr || *abi != HOT_COLD_ABI_VERSION)) {
-            closedir(dir);
-            dlclose(handle);
-            for (uint32_t i = 0; i < stagedCount; ++i)
-                dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error), "cold ABI mismatch: %s", name);
-            return HOT_ERROR_ABI_MISMATCH;
-        }
-        TrampolinesFn get_trampolines = (TrampolinesFn) dlsym(handle, "VkModuleGetTrampolines");
-        if (!get_trampolines) {
-            closedir(dir);
-            dlclose(handle);
-            for (uint32_t i = 0; i < stagedCount; i++)
-                dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error),
-                     "dlsym(VkModuleGetTrampolines) on %s failed: %s", path, dlerror());
-            return HOT_ERROR_DLSYM_FAILED;
-        }
-
-        // Section stem = file name without extension, plus the manifest
-        // catalog's stem rule ("libbar.so" → "bar") so loader slots and
-        // declared sections agree on the same identity.
-        char mod_name[HOT_MANIFEST_MAX_NAME];
-        strncpy(mod_name, name, HOT_MANIFEST_MAX_NAME - 1);
-        mod_name[HOT_MANIFEST_MAX_NAME - 1] = '\0';
-        char *dot = strrchr(mod_name, '.');
-        if (dot)
-            (*dot) = '\0';
-        if (strcmp(name + nlen - 3, ".so") == 0 && nlen > 6 &&
-            strncmp(mod_name, "lib", 3) == 0)
-            memmove(mod_name, mod_name + 3, strlen(mod_name + 3) + 1);
-
-        HotModuleInternal *mod = find_module(hot, mod_name);
-        if (!mod) {
-            if ((*hot).module_count >= HOT_MAX_MODULES) {
-                closedir(dir);
-                dlclose(handle);
-                for (uint32_t i = 0; i < stagedCount; i++)
-                    dlclose(staged[i].handle);
-                snprintf((*hot).last_error, sizeof((*hot).last_error),
-                         "Too many modules (limit %d reached)", HOT_MAX_MODULES);
-                return HOT_ERROR_OUT_OF_MEMORY;
-            }
-            mod = &(*hot).modules[(*hot).module_count++];
-            strncpy((*mod).name, mod_name, HOT_MANIFEST_MAX_NAME - 1);
-            (*mod).name[HOT_MANIFEST_MAX_NAME - 1] = '\0';
-            (*mod).handle = nullptr;
-            (*mod).loaded = false;
-        }
-
-        HotStagedSection *s = &staged[stagedCount++];
-        (*s).mod = mod;
-        strncpy((*s).path, path, HOT_PATH_LEN - 1);
-        (*s).path[HOT_PATH_LEN - 1] = '\0';
-        (*s).handle = handle;
-        (*s).trampolines = get_trampolines(&(*s).trampolineCount);
-        const struct { const char *name; void *fn; } *exports = (*s).trampolines;
-        bool valid = exports != nullptr && (*s).trampolineCount > 0;
-        for (uint32_t i = 0; valid && i + 1 < stagedCount; ++i)
-            valid = staged[i].mod != mod;
-        for (uint32_t k = 0; valid && k < (*s).trampolineCount; ++k)
-            valid = exports[k].name != nullptr && exports[k].fn != nullptr &&
-                    exports[k].name[0] != '\0' &&
-                    strnlen(exports[k].name, HOT_MANIFEST_MAX_NAME) < HOT_MANIFEST_MAX_NAME;
-        if (!valid) {
-            closedir(dir);
-            for (uint32_t i = 0; i < stagedCount; ++i)
-                dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error), "invalid export table: %s", name);
-            return HOT_ERROR_ABI_MISMATCH;
-        }
+        stagedCount++;
     }
     closedir(dir);
 
@@ -821,8 +492,8 @@ static HotResult perform_swap(HotModule *hot, const char *libDir, uint32_t *outL
         return perform_verified_swap(hot, libDir, outLoaded);
     char privateDir[HOT_PATH_LEN];
     int n = snprintf(privateDir, sizeof(privateDir), "%s/cache/load/%s/release-%u",
-                     MANIFEST_ROOT(), (*hot).library, ++s_loadSerial);
-    if (n < 0 || (size_t) n >= sizeof(privateDir) || !hot_mkdir_p(privateDir))
+                     MANIFEST_ROOT(), (*hot).library, HotStaging_nextSerial());
+    if (n < 0 || (size_t) n >= sizeof(privateDir) || !HotStaging_mkdirs(privateDir))
         return HOT_ERROR_FILE_NOT_FOUND;
     HotResult result = HOT_ERROR_ABI_MISMATCH;
     size_t copied = 0;
@@ -834,7 +505,7 @@ static HotResult perform_swap(HotModule *hot, const char *libDir, uint32_t *outL
         if (n < 0 || (size_t) n >= sizeof(source) || d < 0 || (size_t) d >= sizeof(dest))
             break;
         copied = i + 1; // cleanup also owns any partial failed copy
-        if (!hot_copy_file(source, dest) || !digest_matches(dest, (*item).sha256))
+        if (!HotStaging_copy(source, dest) || !HotStaging_digestMatches(dest, (*item).sha256))
             break;
         if (i + 1 == (*hot).coldCount)
             result = perform_verified_swap(hot, privateDir, outLoaded);
@@ -878,7 +549,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         const char *name = (*entry).d_name;
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
             continue;
-        const HotSectionDigest *digest = cold_digest(hot, name);
+        const HotSectionDigest *digest = HotStaging_coldDigest(hot, name);
         char path[HOT_PATH_LEN];
         int n = snprintf(path, sizeof(path), "%s/%s", payloadDir, name);
         struct stat info;
@@ -887,7 +558,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
                      (len > 3 && strcmp(name + len - 3, ".so") == 0);
         if (digest == nullptr || !dylib || !MANIFEST_ALLOWS((*hot).library, name) ||
             n < 0 || (size_t) n >= sizeof(path) || lstat(path, &info) != 0 ||
-            !S_ISREG(info.st_mode) || !digest_matches(path, (*digest).sha256))
+            !S_ISREG(info.st_mode) || !HotStaging_digestMatches(path, (*digest).sha256))
             break;
         ++found;
     }
@@ -912,7 +583,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         if (!(*module).loaded)
             continue;
         const char *base = strrchr((*module).path, '/');
-        if (base == nullptr || cold_digest(hot, base + 1) == nullptr)
+        if (base == nullptr || HotStaging_coldDigest(hot, base + 1) == nullptr)
             complete = false;
     }
     if (!complete)
@@ -1020,7 +691,7 @@ HotResult Hot_poll(HotModule *hot, uint32_t *loaded_count) {
     // Live swap: preserve the CURRENT (old) generation's state off-thread,
     // swap on a later pass. Old handles stay mapped (retire ring) so the
     // worker always reads live state.
-    if (snapshot_begin(hot)) {
+    if (HotSaveSlot_begin(hot)) {
         (*hot).swapPending = true;
         return HOT_OK;
     }
@@ -1028,10 +699,10 @@ HotResult Hot_poll(HotModule *hot, uint32_t *loaded_count) {
 }
 
 /** Invokes the named loaded module's optional shutdown export. */
-void Hot_shutdown_module(HotModule *hot, const char *module_name) {
+void Hot_shutdownModule(HotModule *hot, const char *module_name) {
     if (!hot || !module_name)
         return;
-    HotModuleInternal *mod = find_module(hot, module_name);
+    HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return;
     typedef void (*ShutdownFn)(void);
@@ -1041,10 +712,10 @@ void Hot_shutdown_module(HotModule *hot, const char *module_name) {
 }
 
 /** Calls the named loaded module's state-save export into the caller's buffer. */
-bool Hot_save_module(HotModule *hot, const char *module_name, void *buf, size_t cap, size_t *outLen) {
+bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, size_t cap, size_t *outLen) {
     if (!hot || !module_name || !buf || !outLen)
         return false;
-    HotModuleInternal *mod = find_module(hot, module_name);
+    HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
     typedef bool (*SaveFn)(void *, size_t, size_t *);
@@ -1055,10 +726,10 @@ bool Hot_save_module(HotModule *hot, const char *module_name, void *buf, size_t 
 }
 
 /** Calls the named loaded module's state-restore export with the supplied bytes. */
-bool Hot_restore_module(HotModule *hot, const char *module_name, const void *buf, size_t len) {
+bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf, size_t len) {
     if (!hot || !module_name || !buf)
         return false;
-    HotModuleInternal *mod = find_module(hot, module_name);
+    HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
     typedef bool (*RestoreFn)(const void *, size_t);
@@ -1069,11 +740,11 @@ bool Hot_restore_module(HotModule *hot, const char *module_name, const void *buf
 }
 
 /** Calls the named loaded module's migration export into the caller's destination. */
-bool Hot_migrate_module(HotModule *hot, const char *module_name, const char *oldVersion,
+bool Hot_migrateModule(HotModule *hot, const char *module_name, const char *oldVersion,
                         const void *oldBuf, size_t oldLen, void *newBuf, size_t newCap, size_t *outLen) {
     if (!hot || !module_name || !oldVersion || !oldBuf || !newBuf || !outLen)
         return false;
-    HotModuleInternal *mod = find_module(hot, module_name);
+    HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
     typedef bool (*MigrateFn)(const char *, const void *, size_t, void *, size_t, size_t *);
@@ -1086,7 +757,7 @@ bool Hot_migrate_module(HotModule *hot, const char *module_name, const char *old
 // GETTERS (PUBLIC & PRIVATE)
 ;;GETTER
 /** Resolves a registered symbol through the current trampoline table. */
-HotFn Hot_get_symbol(HotModule *hot, const char *name) {
+HotFn Hot_getSymbol(HotModule *hot, const char *name) {
     if (!hot || !name)
         return nullptr;
 
@@ -1100,7 +771,7 @@ HotFn Hot_get_symbol(HotModule *hot, const char *name) {
 
 ;;GETTER
 /** Returns the last successfully committed manifest generation. */
-uint64_t Hot_get_generation(const HotModule *hot) {
+uint64_t Hot_getGeneration(const HotModule *hot) {
     return hot ? (*hot).generation : 0;
 }
 
@@ -1110,7 +781,7 @@ bool Hot_requiresRecovery(const HotModule *hot) {
 
 ;;GETTER
 /** Returns the loader's last diagnostic, or a fixed message for null. */
-const char *Hot_last_error(HotModule *hot) {
+const char *Hot_getLastError(HotModule *hot) {
     if (!hot)
         return "NULL hot module";
     return (*hot).last_error;

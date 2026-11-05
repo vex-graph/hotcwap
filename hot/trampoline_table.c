@@ -1,7 +1,5 @@
-#include "hot/hot_trampoline.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
-#include "annotation/intention.h"
+#include "hot/trampoline_table.h"
+#include "annotation/annotation.h"
 #include "exception/throw.h"
 #include <limits.h>
 #include <stdio.h>
