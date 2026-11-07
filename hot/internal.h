@@ -24,6 +24,11 @@ HotModuleInternal *HotModuleInternal_adopt(HotModule *hot, const char *name);
 void *HotSaveSlot_workerMain(void *arg);
 void HotSaveSlot_workerShutdown(HotModule *hot);
 bool HotSaveSlot_begin(HotModule *hot);
+// The one handshake word, readable without saveLock (atomic snapshot).
+HotSavePhase HotSaveSlot_phase(const HotModule *hot);
+// CAPTURED -> IDLE, called by the frame thread immediately before the swap.
+// True when it consumed a published snapshot; false when none was pending.
+bool HotSaveSlot_consume(HotModule *hot);
 
 // --- hot/staged_section.c — map, verify, describe --------------------------
 bool HotStagedSection_isImage(const char *name);

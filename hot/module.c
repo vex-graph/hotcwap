@@ -15,9 +15,9 @@
 #include <limits.h>
 #include <unistd.h>
 #include "security/crypto.h"
-#include "exception/throw.h"
+#include "util/throw.h"
 
-#include "annotation/annotation.h"
+#include "util/annotation.h"
 
 ;;DEFINITION
 /**
@@ -68,13 +68,9 @@
  *   HotTrampolineTable trampolines;      // per-instance symbols
  *   HotRetireRing retireRing;            // per-instance generational close
  *   pthread_t saveThread;                // off-thread state-save worker
- *   pthread_mutex_t saveLock;            // guards saveRequested/saveDone/saveSlots
+ *   pthread_mutex_t saveLock;            // guards blobs + phase writes
  *   pthread_cond_t saveCond;             // worker sleep/wake
- *   bool saveWorkerLive;                 // worker running
- *   bool saveCancel;                     // shutdown flag (under saveLock)
- *   bool saveRequested;                  // snapshot pending (under saveLock)
- *   bool saveDone;                       // snapshot published (under saveLock)
- *   bool swapPending;                    // snapshot kicked; swap on next poll
+ *   atomic_uint savePhase;               // HotSavePhase: the one handshake word
  *   HotSaveSlot saveSlots[HOT_MAX_MODULES]; // snapshot blobs (worker writes, poll reads)
  *   size_t saveCount;                    // populated slots
  *   const HotSectionDigest *coldDigests; // borrowed trusted cold descriptor
@@ -127,6 +123,8 @@
  * Private Core Functions: (.c static)
  *   - HotModuleInternal_find(hot, name)                 : Lookup internal module slot
  *   - HotSaveSlot_begin(hot)                    : Wake save worker for off-thread capture
+ *   - HotSaveSlot_phase(hot)                    : Read the one handshake word
+ *   - HotSaveSlot_consume(hot)                  : CAPTURED -> IDLE before a swap
  *   - snapshot_modules(hot)                  : Worker body capturing state blobs
  *   - HotSaveSlot_workerMain(arg)                  : Dedicated save worker thread entry
  *   - perform_swap(hot)                      : Stage, verify, restore, and swap dylibs
@@ -217,9 +215,8 @@ HotModule *Hot_init(const char *library) {
 
     pthread_mutex_init(&(*hot).saveLock, nullptr);
     pthread_cond_init(&(*hot).saveCond, nullptr);
-    (*hot).saveWorkerLive = (pthread_create(&(*hot).saveThread, nullptr,
-                                            HotSaveSlot_workerMain, hot) == 0);
-    if (!(*hot).saveWorkerLive) {
+    // calloc left savePhase at HOT_SAVE_IDLE (0); the worker publishes from there.
+    if (pthread_create(&(*hot).saveThread, nullptr, HotSaveSlot_workerMain, hot) != 0) {
         pthread_mutex_destroy(&(*hot).saveLock);
         pthread_cond_destroy(&(*hot).saveCond);
         free(hot);
@@ -530,8 +527,9 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         return HOT_ERROR_RECOVERY_REQUIRED;
     }
     if (hot == nullptr || payloadDir == nullptr || digests == nullptr || count == 0 ||
-        count > HOT_MAX_MODULES || count != MANIFEST_SECTION_COUNT((*hot).library) || (*hot).swapPending) {
-        THROW("cold update: invalid admission or legacy snapshot pending");
+        count > HOT_MAX_MODULES || count != MANIFEST_SECTION_COUNT((*hot).library) ||
+        HotSaveSlot_phase(hot) != HOT_SAVE_IDLE) {
+        THROW("cold update: invalid admission or a snapshot handshake is in flight");
         return HOT_ERROR_INIT_FAILED;
     }
     HotResult result = HOT_ERROR_ABI_MISMATCH;
@@ -669,15 +667,20 @@ HotResult Hot_poll(HotModule *hot, uint32_t *loaded_count) {
     uint64_t stamp = MANIFEST_GENERATION((*hot).library);
 
     // Complete an in-flight live swap once the off-thread snapshot landed.
-    if ((*hot).swapPending) {
-        pthread_mutex_lock(&(*hot).saveLock);
-        bool done = (*hot).saveDone;
-        pthread_mutex_unlock(&(*hot).saveLock);
-        if (done) {
-            (*hot).swapPending = false;
-            return perform_swap(hot, libDir, loaded_count);
-        }
-        return HOT_OK; // worker still snapshooting the old generation
+    // The phase word is the whole handshake: REQUESTED waits, CAPTURED swaps,
+    // STOPPED refuses to start new work.
+    HotSavePhase save = HotSaveSlot_phase(hot);
+    if (save == HOT_SAVE_REQUESTED)
+        return HOT_OK; // worker still capturing the old generation
+    if (save == HOT_SAVE_CAPTURED) {
+        if (!HotSaveSlot_consume(hot))
+            return HOT_OK; // consumed elsewhere; resolve on the next pass
+        return perform_swap(hot, libDir, loaded_count);
+    }
+    if (save == HOT_SAVE_STOPPED) {
+        snprintf((*hot).last_error, sizeof((*hot).last_error),
+                 "poll after save worker stop");
+        return HOT_ERROR_INIT_FAILED;
     }
 
     if (stamp == (*hot).generation)
@@ -690,11 +693,9 @@ HotResult Hot_poll(HotModule *hot, uint32_t *loaded_count) {
 
     // Live swap: preserve the CURRENT (old) generation's state off-thread,
     // swap on a later pass. Old handles stay mapped (retire ring) so the
-    // worker always reads live state.
-    if (HotSaveSlot_begin(hot)) {
-        (*hot).swapPending = true;
+    // worker always reads live state. begin() is the IDLE -> REQUESTED write.
+    if (HotSaveSlot_begin(hot))
         return HOT_OK;
-    }
     return perform_swap(hot, libDir, loaded_count); // nothing save-capable
 }
 
