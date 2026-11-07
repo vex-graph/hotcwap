@@ -1,6 +1,6 @@
 #include "hot/trampoline_table.h"
-#include "annotation/annotation.h"
-#include "exception/throw.h"
+#include "util/annotation.h"
+#include "util/throw.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>

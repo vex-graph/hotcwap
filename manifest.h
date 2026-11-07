@@ -79,7 +79,7 @@
 
 // Per-platform application-install base, overridable at build time
 // (custom deployments) or by $VEX_MANIFEST at runtime (test seam).
-#include "lifetime/platform.h"
+#include "util/platform.h"
 
 #if defined(VEX_PLATFORM_WINDOWS)
 #  define APPLICATION_PATH "%LOCALAPPDATA%"

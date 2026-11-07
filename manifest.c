@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#include "lifetime/platform.h"
+#include "util/platform.h"
 
 #if defined(VEX_PLATFORM_WINDOWS)
 #  include <io.h>
@@ -24,8 +24,8 @@
 #  define UNLINK(a)    unlink(a)
 #endif
 
-#include "annotation/annotation.h"
-#include "exception/throw.h"
+#include "util/annotation.h"
+#include "util/throw.h"
 
 ;;DEFINITION
 /**

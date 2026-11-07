@@ -1,6 +1,6 @@
-#include "annotation/annotation.h"
+#include "util/annotation.h"
 
-#include "lifetime/platform.h"
+#include "util/platform.h"
 
 ;;DEFINITION
 /** The install ledger remembers an application's install state outside its
