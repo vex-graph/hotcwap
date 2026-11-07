@@ -22,8 +22,9 @@ runtime with a working macOS backend, not a finished multi-platform host.
   synchronously and restores into candidate images before publishing targets.
   Detected rejection reverts disk current/generation and retains running state;
   unresolved rollback requires host recovery. Dispatch rows grow cold and reuse
-  symbol identities; there is no arbitrary update-count ceiling. Owner runner:
-  `python3 tests/hotcwap/hot/cold_update_test.py` (real two-section repeated swaps).
+  symbol identities; there is no arbitrary update-count ceiling. The real
+  two-section swap fixture driver is not in the tree, so the checked-in
+  `cold_update_test.c` currently reaches only its SKIP path.
   Caller exclusion is mandatory, not a new concurrent loader/lifetime guarantee.
 - **Draft / unproven:** the Linux X11, Wayland and Win32 window backends
   (`window_linux.c`, `window_wayland.c`, `window_win32.c`) are drafts that need

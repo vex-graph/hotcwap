@@ -59,7 +59,7 @@ static int value(HotModule *hot, const char *name) {
 
 int main(int argc, char **argv) {
     if (argc != 2) {
-        fputs("SKIP: real dylib fixtures require python3 hotcwap/test/hot/cold_update_test.py\n", stderr);
+        fputs("SKIP: real dylib fixtures need a fixture driver that is not in the tree\n", stderr);
         return 77;
     }
     const char *base = argv[1];
