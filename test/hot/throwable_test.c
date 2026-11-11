@@ -74,7 +74,7 @@ int main(void) {
         dummyTeardown_24, dummyTeardown_25, dummyTeardown_26, dummyTeardown_27,
         dummyTeardown_28, dummyTeardown_29, dummyTeardown_30, dummyTeardown_31,
     };
-    for (size_t i = 0; i < sizeof(bulkFns)/sizeof(bulkFns[0]); i++) {
+    for (bytes i = 0; i < sizeof(bulkFns)/sizeof(bulkFns[0]); i++) {
         Throwable_registerTeardown(bulkFns[i]);
     }
     // Test unregistering one

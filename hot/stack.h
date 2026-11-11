@@ -87,9 +87,9 @@ HotResult Hot_pollAll(HotStack *stack, HotStackChanged *changed);
 
 HotModule *Hot_getCore(const HotStack *stack);
 HotModule *Hot_getApplication(const HotStack *stack);
-HotModule *Hot_getPlugin(const HotStack *stack, uint32_t index);
-uint32_t Hot_getPluginCount(const HotStack *stack);
-uint64_t Hot_getCoreContract(const HotStack *stack);
+HotModule *Hot_getPlugin(const HotStack *stack, u32 index);
+u32 Hot_getPluginCount(const HotStack *stack);
+u64 Hot_getCoreContract(const HotStack *stack);
 bool Hot_isApplicationCompatible(const HotStack *stack);
 const char *Hot_getStackError(const HotStack *stack);
 

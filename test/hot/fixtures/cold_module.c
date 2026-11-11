@@ -16,25 +16,25 @@
 #ifndef PREFIX
 #define PREFIX "one"
 #endif
-const uint64_t Hot_cold_abi = ABI;
+const u64 Hot_cold_abi = ABI;
 static int state;
 static int version(void) { return VERSION; }
 static int get(void) { return state; }
 static void set(int value) { state = value; }
-bool Hot_save(void *dest, size_t cap, size_t *length) {
+bool Hot_save(void *dest, bytes cap, bytes *length) {
     if (!dest || !length || cap < sizeof(state))
         return false;
     memcpy(dest, &state, sizeof(state));
     *length = sizeof(state);
     return true;
 }
-bool Hot_restore(const void *source, size_t length) {
+bool Hot_restore(const void *source, bytes length) {
     if (!RESTORE_OK || !source || length != sizeof(state))
         return false;
     memcpy(&state, source, sizeof(state));
     return true;
 }
-const void *Hot_getExports(uint32_t *count) {
+const void *Hot_getExports(u32 *count) {
     static const struct { const char *name; void *fn; } exports[] = {
         {PREFIX "_version", (void*) version}, {PREFIX "_state", (void*) get}, {PREFIX "_set", (void*) set}
     };

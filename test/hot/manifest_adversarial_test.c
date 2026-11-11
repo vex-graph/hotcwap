@@ -47,10 +47,10 @@ static bool mkdir_p(const char *path) {
     if (errno != ENOENT)
         return false;
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -74,7 +74,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }
@@ -100,7 +100,7 @@ static bool write_file(const char *path, const char *data) {
     FILE *f = fopen(path, "wb");
     if (!f)
         return false;
-    size_t n = strlen(data);
+    bytes n = strlen(data);
     bool ok = (fwrite(data, 1, n, f) == n);
     fclose(f);
     return ok;
@@ -113,7 +113,7 @@ static bool file_matches(const char *path, const char *data) {
     if (!f)
         return false;
     char buf[512];
-    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    bytes n = fread(buf, 1, sizeof(buf) - 1, f);
     fclose(f);
     buf[n] = '\0';
     return strcmp(buf, data) == 0;
@@ -169,7 +169,7 @@ int main(void) {
 
     // --- B. Corrupt manifest.json: reject + never overwrite ------------------
     const char *hostile[] = { "not json at all", "{", "]", "{\"libraries\":" };
-    for (size_t i = 0; i < sizeof(hostile) / sizeof(hostile[0]); i++) {
+    for (bytes i = 0; i < sizeof(hostile) / sizeof(hostile[0]); i++) {
         char app[64];
         snprintf(app, sizeof(app), "adv_corrupt%zu", i);
         char dir[512];

@@ -19,20 +19,20 @@ static void copy(const char *source, const char *dest) {
     FILE *in = fopen(source, "rb"), *out = fopen(dest, "wb");
     assert(in && out);
     unsigned char bytes[4096];
-    size_t n;
+    bytes n;
     while ((n = fread(bytes, 1, sizeof(bytes), in)))
         assert(fwrite(bytes, 1, n, out) == n);
     assert(!ferror(in));
     assert(fclose(in) == 0 && fclose(out) == 0);
 }
 
-static void digest(const char *source, uint8_t *dest) {
+static void digest(const char *source, u8 *dest) {
     FILE *in = fopen(source, "rb");
     assert(in);
     CryptoSha256 hash;
     Crypto_sha256Init(&hash);
     unsigned char bytes[4096];
-    size_t n;
+    bytes n;
     while ((n = fread(bytes, 1, sizeof(bytes), in)))
         Crypto_sha256Update(&hash, bytes, n);
     assert(!ferror(in) && fclose(in) == 0);
@@ -40,7 +40,7 @@ static void digest(const char *source, uint8_t *dest) {
 }
 
 static void prepare(const char *base, const char *version, const char *payload, HotSectionDigest *specs) {
-    for (size_t i = 0; i < 2; ++i) {
+    for (bytes i = 0; i < 2; ++i) {
         HotSectionDigest *item = &specs[i];
         char dir[1024], source[1024], dest[1024];
         path(base, version, dir);
@@ -82,12 +82,12 @@ int main(int argc, char **argv) {
     assert(hot);
     assert(!Hot_requiresRecovery(hot) && !Hot_requiresRecovery(nullptr));
     assert(!MANIFEST_REQUIRES_RECOVERY());
-    uint32_t loaded = 99;
+    u32 loaded = 99;
     assert(Hot_updateCold(hot, payload, specs, 2, &loaded) == HOT_OK && loaded == 2);
     assert(value(hot, "one_version") == 1 && value(hot, "two_version") == 1);
     ((void (*)(int)) Hot_getSymbol(hot, "one_set"))(77);
     ((void (*)(int)) Hot_getSymbol(hot, "two_set"))(88);
-    uint64_t generation = Hot_getGeneration(hot);
+    u64 generation = Hot_getGeneration(hot);
     for (int i = 0; i < 20; ++i) {
         prepare(base, i % 2 ? "v1" : "v2", payload, specs);
         assert(Hot_updateCold(hot, payload, specs, 2, &loaded) == HOT_OK && loaded == 2);

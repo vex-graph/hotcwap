@@ -51,10 +51,10 @@ static bool mkdir_p(const char *path) {
     if (errno != ENOENT)
         return false;
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -78,7 +78,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }
@@ -157,7 +157,7 @@ int main(void) {
         rmtree(base);
         return 1;
     }
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult r = HOT_OK;
     bool saw_error = false;
     for (int i = 0; i < 10 && !saw_error; i++) {

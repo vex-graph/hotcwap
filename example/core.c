@@ -29,9 +29,9 @@
 #define CORE_SCHEMA 1u
 
 typedef struct CoreState {
-    uint32_t magic;
-    uint32_t schema;
-    uint64_t pulses;      // how many times the app asked for a pulse
+    u32 magic;
+    u32 schema;
+    u64 pulses;      // how many times the app asked for a pulse
 } CoreState;
 
 static CoreState s_core = { CORE_MAGIC, CORE_SCHEMA, 0 };
@@ -44,20 +44,20 @@ static CoreState s_core = { CORE_MAGIC, CORE_SCHEMA, 0 };
 // re-resolves and re-attaches, and the app never holds a stale address.
 // ---------------------------------------------------------------------------
 
-float Core_pulse(double nowSeconds);
-uint64_t Core_calls(void);
+f32 Core_pulse(d64 nowSeconds);
+u64 Core_calls(void);
 
-float Core_pulse(double nowSeconds) {
+f32 Core_pulse(d64 nowSeconds) {
     s_core.pulses += 1;
 
 #if CORE_CONTRACT_ABI >= 2
-    return (float) (nowSeconds * 4.0);   // v2: twice the rate
+    return (f32) (nowSeconds * 4.0);   // v2: twice the rate
 #else
-    return (float) (nowSeconds * 2.0);   // v1
+    return (f32) (nowSeconds * 2.0);   // v1
 #endif
 }
 
-uint64_t Core_calls(void) {
+u64 Core_calls(void) {
     return s_core.pulses;
 }
 
@@ -65,8 +65,8 @@ uint64_t Core_calls(void) {
 // CONTRACT ANNOUNCEMENT — the number the app gate compares against.
 // ---------------------------------------------------------------------------
 
-uint64_t Hot_contract_abi(void);
-uint64_t Hot_contract_abi(void) {
+u64 Hot_contract_abi(void);
+u64 Hot_contract_abi(void) {
     return CORE_CONTRACT_ABI;
 }
 
@@ -74,10 +74,10 @@ uint64_t Hot_contract_abi(void) {
 // STATE HANDOFF
 // ---------------------------------------------------------------------------
 
-bool Hot_save(void *buf, size_t cap, size_t *outLen);
-bool Hot_restore(const void *buf, size_t len);
+bool Hot_save(void *buf, bytes cap, bytes *outLen);
+bool Hot_restore(const void *buf, bytes len);
 
-bool Hot_save(void *buf, size_t cap, size_t *outLen) {
+bool Hot_save(void *buf, bytes cap, bytes *outLen) {
     if (outLen)
         *outLen = 0;
     if (!buf || !outLen || cap < sizeof(CoreState))
@@ -87,7 +87,7 @@ bool Hot_save(void *buf, size_t cap, size_t *outLen) {
     return true;
 }
 
-bool Hot_restore(const void *buf, size_t len) {
+bool Hot_restore(const void *buf, bytes len) {
     if (!buf || len != sizeof(CoreState))
         return false;
     CoreState in;
@@ -115,9 +115,9 @@ static const HotModuleExport s_exports[] = {
     { "Hot_restore",        (void*) Hot_restore },
 };
 
-const void *Hot_getExports(uint32_t *outCount);
-const void *Hot_getExports(uint32_t *outCount) {
+const void *Hot_getExports(u32 *outCount);
+const void *Hot_getExports(u32 *outCount) {
     if (outCount)
-        *outCount = (uint32_t) (sizeof(s_exports) / sizeof(s_exports[0]));
+        *outCount = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;
 }

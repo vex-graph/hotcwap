@@ -23,7 +23,7 @@ typedef struct {
     char path[HOT_PATH_LEN];          // dylib path
     void *handle;                     // dlopened, not yet adopted
     const void *trampolines;          // Hot_getExports table
-    uint32_t trampolineCount;         // entries
+    u32 trampolineCount;         // entries
 } HotStagedSection;
 
 #endif

@@ -25,14 +25,14 @@ void setup(CorePulseFn pulse) {
     printf("[app v1] hello, this is version 1\n");
 }
 
-void run(double nowSeconds) {
+void run(d64 nowSeconds) {
     s_app.frames += 1;
 
     if ((s_app.frames % 20u) == 1u) {
         int sum = 1 + 1;
         printf("[app v1] frame %4llu: 1 + 1 = %d   (pulse=%.2f)\n",
                (unsigned long long) s_app.frames, sum,
-               s_corePulse ? (double) s_corePulse(nowSeconds) : 0.0);
+               s_corePulse ? (d64) s_corePulse(nowSeconds) : 0.0);
     }
 }
 
@@ -42,19 +42,19 @@ void teardown(void) {
 
 // --- the names the loader looks up by dlsym -------------------------------
 
-uint64_t Hot_requires_core_abi(void);
-bool Hot_save(void *buf, size_t cap, size_t *outLen);
-bool Hot_restore(const void *buf, size_t len);
+u64 Hot_requires_core_abi(void);
+bool Hot_save(void *buf, bytes cap, bytes *outLen);
+bool Hot_restore(const void *buf, bytes len);
 
-uint64_t Hot_requires_core_abi(void) {
+u64 Hot_requires_core_abi(void) {
     return APP_REQUIRES_CORE_ABI;
 }
 
-bool Hot_save(void *buf, size_t cap, size_t *outLen) {
+bool Hot_save(void *buf, bytes cap, bytes *outLen) {
     return AppState_save(&s_app, buf, cap, outLen);
 }
 
-bool Hot_restore(const void *buf, size_t len) {
+bool Hot_restore(const void *buf, bytes len) {
     return AppState_restore(&s_app, buf, len);
 }
 
@@ -69,10 +69,10 @@ static const HotModuleExport s_exports[] = {
     { "Hot_restore",           (void*) Hot_restore },
 };
 
-const void *Hot_getExports(uint32_t *outCount);
+const void *Hot_getExports(u32 *outCount);
 
-const void *Hot_getExports(uint32_t *outCount) {
+const void *Hot_getExports(u32 *outCount) {
     if (outCount)
-        *outCount = (uint32_t) (sizeof(s_exports) / sizeof(s_exports[0]));
+        *outCount = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;
 }

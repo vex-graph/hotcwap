@@ -17,7 +17,7 @@
 
 typedef struct HotSectionDigest {
     const char *filename;
-    uint8_t sha256[32];
+    u8 sha256[32];
 } HotSectionDigest;
 
 #endif

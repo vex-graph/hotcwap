@@ -45,8 +45,8 @@ layer moves all live in `hot/stack.c`.
 The contract is two exported numbers:
 
 ```
-core image   exports  uint64_t Hot_contract_abi(void);        "I am contract N"
-app image    exports  uint64_t Hot_requires_core_abi(void);   "I need contract M"
+core image   exports  u64 Hot_contract_abi(void);        "I am contract N"
+app image    exports  u64 Hot_requires_core_abi(void);   "I need contract M"
 ```
 
 `M != N` → the app does not run. It stays loaded but idle, and comes back on

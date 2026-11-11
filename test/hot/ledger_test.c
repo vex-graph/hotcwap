@@ -50,7 +50,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }

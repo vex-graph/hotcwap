@@ -65,8 +65,8 @@ static bool copy_file(const char *src, const char *dst) {
         fclose(in);
         return false;
     }
-    uint8_t buf[4096];
-    size_t n = 0;
+    u8 buf[4096];
+    bytes n = 0;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
             fclose(out);
@@ -87,10 +87,10 @@ static bool mkdir_p(const char *path) {
     if (errno != ENOENT)
         return false;
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -114,7 +114,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }
@@ -140,7 +140,7 @@ static bool rmtree(const char *path) {
 static bool stage_payload(const char *loadBase) {
     char path[512];
     int plen = snprintf(path, sizeof(path), "%s/payload", loadBase);
-    if (plen < 0 || (size_t) plen >= sizeof(path))
+    if (plen < 0 || (bytes) plen >= sizeof(path))
         return false;
     if (!mkdir_p(path))
         return false;
@@ -149,17 +149,17 @@ static bool stage_payload(const char *loadBase) {
     base = base ? base + 1 : moduleFile;
     char dst[512];
     int dlen = snprintf(dst, sizeof(dst), "%s/%s", path, base);
-    if (dlen < 0 || (size_t) dlen >= sizeof(dst))
+    if (dlen < 0 || (bytes) dlen >= sizeof(dst))
         return false;
     return copy_file(moduleFile, dst);
 }
 
 /** Polls the module until its generation reaches the target or times out. */
-static bool wait_for_generation(HotModule *hot, uint32_t target) {
+static bool wait_for_generation(HotModule *hot, u32 target) {
     for (int i = 0; i < 60; i++) {
         struct timespec d = { 0, 20 * 1000 * 1000 };
         nanosleep(&d, 0);
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         HotResult r = Hot_poll(hot, &loaded);
         if (r != HOT_OK)
             return false;
@@ -206,7 +206,7 @@ int main(void) {
     CHECK(stage_payload(loadBase), "stage_payload failed");
     char payloadDir[512];
     int pd = snprintf(payloadDir, sizeof(payloadDir), "%s/payload", loadBase);
-    CHECK(pd >= 0 && (size_t) pd < sizeof(payloadDir), "payloadDir truncation");
+    CHECK(pd >= 0 && (bytes) pd < sizeof(payloadDir), "payloadDir truncation");
     CHECK(MANIFEST_REFLECT("hot_behavior", payloadDir),
           "MANIFEST_REFLECT() failed");
     CHECK(MANIFEST_GENERATION("hot_behavior") == 1u,
@@ -220,7 +220,7 @@ int main(void) {
         rmtree(loadBase);
         return 1;
     }
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult r = Hot_poll(hot, &loaded);
     CHECK(r == HOT_OK, "first Hot_poll failed: %s", Hot_getLastError(hot));
     CHECK(loaded > 0u, "first Hot_poll loaded %u modules", loaded);
@@ -228,7 +228,7 @@ int main(void) {
     HotFn pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "hot_behavior_pulse unresolved after first load");
     if (pulseFn) {
-        float v = ((float (*)(double)) pulseFn)(1.0);
+        f32 v = ((f32 (*)(d64)) pulseFn)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "pulse(1.0)=%f out of range", v);
         printf("  generation 1 pulse(1.0) = %f\n", v);
     }
@@ -256,7 +256,7 @@ int main(void) {
     pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "hot_behavior_pulse unresolved after swap");
     if (pulseFn) {
-        float v = ((float (*)(double)) pulseFn)(1.0);
+        f32 v = ((f32 (*)(d64)) pulseFn)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "post-swap pulse(1.0)=%f out of range", v);
         printf("  generation 2 pulse(1.0) = %f (state restored)\n", v);
     }

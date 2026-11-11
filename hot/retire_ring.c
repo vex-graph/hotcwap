@@ -33,13 +33,13 @@
  * STRUCT FIELDS (Mirroring hot/hot_retire.h — exactly this file's class):
  * ----------------------------------------------------------------------------
  *   HotRetiredHandle slots[HOT_RETIRED_MAX]; // parked handles (max 16)
- *   uint32_t generation;                     // current poll generation
+ *   u32 generation;                     // current poll generation
  *
  * SLOT RECORD (public, behaviorless, owned by this ring):
  * ----------------------------------------------------------------------------
  *   HotRetiredHandle (one parked dylib):
  *     void *handle;                          // retired dylib (NULL = free slot)
- *     uint32_t generation;                   // poll generation when retired
+ *     u32 generation;                   // poll generation when retired
  *
  * PRIVATE HELPERS:
  * ----------------------------------------------------------------------------
@@ -80,7 +80,7 @@
 void HotRetireRing_retire(HotRetireRing *self, void *handle) {
     if (!self || !handle) return;
 
-    for (size_t i = 0; i < HOT_RETIRED_MAX; i++) {
+    for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
         HotRetiredHandle *slot = &(*self).slots[i];
         if ((*slot).handle && ((*self).generation - (*slot).generation >= HOT_RETIRED_GENERATIONS)) {
             dlclose((*slot).handle);
@@ -88,8 +88,8 @@ void HotRetireRing_retire(HotRetireRing *self, void *handle) {
         }
     }
 
-    size_t free_idx = HOT_RETIRED_MAX;
-    for (size_t i = 0; i < HOT_RETIRED_MAX; i++) {
+    bytes free_idx = HOT_RETIRED_MAX;
+    for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
         HotRetiredHandle *slot = &(*self).slots[i];
         if (!(*slot).handle) {
             free_idx = i;
@@ -98,9 +98,9 @@ void HotRetireRing_retire(HotRetireRing *self, void *handle) {
     }
 
     if (free_idx == HOT_RETIRED_MAX) {
-        size_t oldest_idx = 0;
-        uint32_t oldest_gen = UINT32_MAX;
-        for (size_t i = 0; i < HOT_RETIRED_MAX; i++) {
+        bytes oldest_idx = 0;
+        u32 oldest_gen = UINT32_MAX;
+        for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
             HotRetiredHandle *slot = &(*self).slots[i];
             if ((*slot).generation < oldest_gen) {
                 oldest_gen = (*slot).generation;
@@ -121,7 +121,7 @@ void HotRetireRing_retire(HotRetireRing *self, void *handle) {
 void HotRetireRing_advance(HotRetireRing *self) {
     if (!self) return;
     (*self).generation++;
-    for (size_t i = 0; i < HOT_RETIRED_MAX; i++) {
+    for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
         HotRetiredHandle *slot = &(*self).slots[i];
         if ((*slot).handle && ((*self).generation - (*slot).generation >= HOT_RETIRED_GENERATIONS)) {
             dlclose((*slot).handle);
@@ -133,7 +133,7 @@ void HotRetireRing_advance(HotRetireRing *self) {
 /** Closes every handle still retained by the ring. */
 void HotRetireRing_drainAll(HotRetireRing *self) {
     if (!self) return;
-    for (size_t i = 0; i < HOT_RETIRED_MAX; i++) {
+    for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
         HotRetiredHandle *slot = &(*self).slots[i];
         if ((*slot).handle) {
             dlclose((*slot).handle);

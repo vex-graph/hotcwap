@@ -56,8 +56,8 @@ static bool copy_file(const char *src, const char *dst) {
         fclose(in);
         return false;
     }
-    uint8_t buf[4096];
-    size_t n = 0;
+    u8 buf[4096];
+    bytes n = 0;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
             fclose(out);
@@ -78,10 +78,10 @@ static bool mkdir_p(const char *path) {
     if (errno != ENOENT)
         return false;
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -105,7 +105,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }
@@ -130,13 +130,13 @@ static bool rmtree(const char *path) {
 static bool stage_module(const char *loadBase) {
     char dir[512];
     int dl = snprintf(dir, sizeof(dir), "%s/payload", loadBase);
-    if (dl < 0 || (size_t) dl >= sizeof(dir))
+    if (dl < 0 || (bytes) dl >= sizeof(dir))
         return false;
     if (!mkdir_p(dir))
         return false;
     char dst[512];
     int n = snprintf(dst, sizeof(dst), "%s/hot_behavior.so", dir);
-    if (n < 0 || (size_t) n >= sizeof(dst))
+    if (n < 0 || (bytes) n >= sizeof(dst))
         return false;
     return copy_file(HOT_BEHAVIOR_MODULE, dst);
 }
@@ -182,7 +182,7 @@ int main(void) {
         rmtree(base);
         return 1;
     }
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult r = Hot_poll(hot, &loaded);
     CHECK(r == HOT_OK && Hot_getGeneration(hot) == 1u, "gen1 load failed: %s", Hot_getLastError(hot));
     printf("  A. generation 1 loaded\n");

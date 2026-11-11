@@ -98,9 +98,9 @@
 #define HOT_BEHAVIOR_SCHEMA_MAGIC 0x56455842u   // "VEXB" — v3 state-blob ownership tag
 #endif
 
-static float s_phaseBias = 0.0f;
-static int32_t s_modeShadow = 0;
-static float s_glowStrength = 1.0f;
+static f32 s_phaseBias = 0.0f;
+static i32 s_modeShadow = 0;
+static f32 s_glowStrength = 1.0f;
 
 // CONSTRUCTORS (PUBLIC & PRIVATE)
 
@@ -117,13 +117,13 @@ void Hot_shutdown_module(void) {
 }
 
 /** Writes the current v3 state fields to the caller's buffer. */
-bool Hot_save(void *buf, size_t cap, size_t *outLen) {
+bool Hot_save(void *buf, bytes cap, bytes *outLen) {
     if (!buf || !outLen)
         return false;
     if (cap < HOT_BEHAVIOR_V3_SIZE)
         return false;
-    uint8_t *b = (uint8_t*) buf;
-    const uint32_t magic = HOT_BEHAVIOR_SCHEMA_MAGIC;
+    u8 *b = (u8*) buf;
+    const u32 magic = HOT_BEHAVIOR_SCHEMA_MAGIC;
     memcpy(b, &magic, 4);
     memcpy(b + 4, &s_phaseBias, 4);
     memcpy(b + 8, &s_modeShadow, 4);
@@ -133,10 +133,10 @@ bool Hot_save(void *buf, size_t cap, size_t *outLen) {
 }
 
 /** Restores recognized v1/v2 state or a v3 blob with the expected schema magic. */
-bool Hot_restore(const void *buf, size_t len) {
+bool Hot_restore(const void *buf, bytes len) {
     if (!buf)
         return false;
-    const uint8_t *b = (const uint8_t*) buf;
+    const u8 *b = (const u8*) buf;
     if (len == HOT_BEHAVIOR_V1_SIZE) {
         memcpy(&s_phaseBias, b, 4);
         memcpy(&s_modeShadow, b + 4, 4);
@@ -151,7 +151,7 @@ bool Hot_restore(const void *buf, size_t len) {
     }
     if (len != HOT_BEHAVIOR_V3_SIZE)
         return false;
-    uint32_t magic = 0;
+    u32 magic = 0;
     memcpy(&magic, b, 4);
     if (magic != HOT_BEHAVIOR_SCHEMA_MAGIC)
         return false;
@@ -162,18 +162,18 @@ bool Hot_restore(const void *buf, size_t len) {
 }
 
 /** Converts supported legacy state versions to v3, or copies a fitting unknown version. */
-bool Hot_migrate(const char *oldVersion, const void *oldBuf, size_t oldLen,
-                 void *newBuf, size_t newCap, size_t *outLen) {
+bool Hot_migrate(const char *oldVersion, const void *oldBuf, bytes oldLen,
+                 void *newBuf, bytes newCap, bytes *outLen) {
     if (!oldVersion || !oldBuf || !newBuf || !outLen)
         return false;
-    const uint32_t magic = HOT_BEHAVIOR_SCHEMA_MAGIC;
+    const u32 magic = HOT_BEHAVIOR_SCHEMA_MAGIC;
     if (strcmp(oldVersion, "1.0.0") == 0 && oldLen == HOT_BEHAVIOR_V1_SIZE) {
         if (newCap < HOT_BEHAVIOR_V3_SIZE)
             return false;
         memcpy(newBuf, &magic, 4);
-        memcpy((uint8_t*) newBuf + 4, oldBuf, HOT_BEHAVIOR_V1_SIZE);
-        float glow = 1.0f;
-        memcpy((uint8_t*) newBuf + HOT_BEHAVIOR_V1_SIZE + 4, &glow, 4);
+        memcpy((u8*) newBuf + 4, oldBuf, HOT_BEHAVIOR_V1_SIZE);
+        f32 glow = 1.0f;
+        memcpy((u8*) newBuf + HOT_BEHAVIOR_V1_SIZE + 4, &glow, 4);
         (*outLen) = HOT_BEHAVIOR_V3_SIZE;
         return true;
     }
@@ -181,7 +181,7 @@ bool Hot_migrate(const char *oldVersion, const void *oldBuf, size_t oldLen,
         if (newCap < HOT_BEHAVIOR_V3_SIZE)
             return false;
         memcpy(newBuf, &magic, 4);
-        memcpy((uint8_t*) newBuf + 4, oldBuf, oldLen);
+        memcpy((u8*) newBuf + 4, oldBuf, oldLen);
         (*outLen) = HOT_BEHAVIOR_V3_SIZE;
         return true;
     }
@@ -213,11 +213,11 @@ typedef struct HotModuleExport {
     void *fn;
 } HotModuleExport;
 
-float hot_behavior_pulse(double nowSeconds);
-void hot_behavior_bar(float w, float h, float pulse, float *outBarH, float *outBarW);
+f32 hot_behavior_pulse(d64 nowSeconds);
+void hot_behavior_bar(f32 w, f32 h, f32 pulse, f32 *outBarH, f32 *outBarW);
 const char *hot_texture_path(void);
-void hot_behavior_set_phase_bias(float value);
-float hot_behavior_get_phase_bias(void);
+void hot_behavior_set_phase_bias(f32 value);
+f32 hot_behavior_get_phase_bias(void);
 
 static const HotModuleExport s_exports[] = {
     { "hot_behavior_pulse",    (void*) hot_behavior_pulse },
@@ -233,23 +233,23 @@ static const HotModuleExport s_exports[] = {
 };
 
 /** Returns this module's static trampoline export table and optional row count. */
-const void *Hot_getExports(uint32_t *outCount) {
+const void *Hot_getExports(u32 *outCount) {
     if (outCount)
-        (*outCount) = (uint32_t) (sizeof(s_exports) / sizeof(s_exports[0]));
+        (*outCount) = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;
 }
 
 /** Computes a sinusoidal pulse shifted by phase bias and scaled by glow strength. */
-float hot_behavior_pulse(double nowSeconds) {
-    double t = nowSeconds + (double) s_phaseBias;
-    float base = 0.5f + 0.5f * sinf((float) (t * 6.28318530718));
+f32 hot_behavior_pulse(d64 nowSeconds) {
+    d64 t = nowSeconds + (d64) s_phaseBias;
+    f32 base = 0.5f + 0.5f * sinf((f32) (t * 6.28318530718));
     return base * s_glowStrength > 1.0f ? 1.0f : base * s_glowStrength;
 }
 
 /** Computes bar height and pulse-scaled width into whichever outputs are supplied. */
-void hot_behavior_bar(float w, float h, float pulse, float *outBarH, float *outBarW) {
-    float barH = h * 0.08f;
-    float barW = w * pulse;
+void hot_behavior_bar(f32 w, f32 h, f32 pulse, f32 *outBarH, f32 *outBarW) {
+    f32 barH = h * 0.08f;
+    f32 barW = w * pulse;
     if (outBarH)
         (*outBarH) = barH;
     if (outBarW)
@@ -269,7 +269,7 @@ const char *hot_texture_path(void) {
 
 ;;SETTER
 /** Replaces the module's phase offset used by pulse calculations. */
-void hot_behavior_set_phase_bias(float value) {
+void hot_behavior_set_phase_bias(f32 value) {
     s_phaseBias = value;
 }
 
@@ -277,6 +277,6 @@ void hot_behavior_set_phase_bias(float value) {
 
 ;;GETTER
 /** Returns the module's current phase offset. */
-float hot_behavior_get_phase_bias(void) {
+f32 hot_behavior_get_phase_bias(void) {
     return s_phaseBias;
 }

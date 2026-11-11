@@ -47,7 +47,7 @@ LedgerState Ledger_state(const Ledger *ledger);
 bool Ledger_hasRecord(const Ledger *ledger);
 
 // Last recorded version ("" when none). Dest-last.
-bool Ledger_lastVersion(const Ledger *ledger, char *dest, size_t cap);
+bool Ledger_lastVersion(const Ledger *ledger, char *dest, bytes cap);
 
 const char *Ledger_lastError(const Ledger *ledger);
 

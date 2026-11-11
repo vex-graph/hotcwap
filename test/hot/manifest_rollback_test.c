@@ -72,8 +72,8 @@ static bool copy_file(const char *src, const char *dst) {
         fclose(in);
         return false;
     }
-    uint8_t buf[4096];
-    size_t n = 0;
+    u8 buf[4096];
+    bytes n = 0;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
             fclose(out);
@@ -94,10 +94,10 @@ static bool mkdir_p(const char *path) {
     if (errno != ENOENT)
         return false;
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -121,7 +121,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }
@@ -147,7 +147,7 @@ static bool rmtree(const char *path) {
 static bool stage_module(const char *loadBase, const char *modulePath) {
     char path[512];
     int plen = snprintf(path, sizeof(path), "%s/payload", loadBase);
-    if (plen < 0 || (size_t) plen >= sizeof(path))
+    if (plen < 0 || (bytes) plen >= sizeof(path))
         return false;
     if (!mkdir_p(path))
         return false;
@@ -155,7 +155,7 @@ static bool stage_module(const char *loadBase, const char *modulePath) {
     base = base ? base + 1 : modulePath;
     char dst[512];
     int dlen = snprintf(dst, sizeof(dst), "%s/%s", path, base);
-    if (dlen < 0 || (size_t) dlen >= sizeof(dst))
+    if (dlen < 0 || (bytes) dlen >= sizeof(dst))
         return false;
     return copy_file(modulePath, dst);
 }
@@ -168,7 +168,7 @@ static HotResult poll_until_error(HotModule *hot) {
     for (int i = 0; i < 64; i++) {
         if (i > 0)
             nanosleep(&d, 0);
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         last = Hot_poll(hot, &loaded);
         if (last != HOT_OK)
             return last;
@@ -177,12 +177,12 @@ static HotResult poll_until_error(HotModule *hot) {
 }
 
 // Poll (bounded sleeps) until a generation lands; false when nothing settled.
-static bool poll_until_generation(HotModule *hot, uint64_t target) {
+static bool poll_until_generation(HotModule *hot, u64 target) {
     struct timespec d = { 0, 20 * 1000 * 1000 };
     for (int i = 0; i < 64; i++) {
         if (i > 0)
             nanosleep(&d, 0);
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         HotResult r = Hot_poll(hot, &loaded);
         if (r != HOT_OK)
             return false;
@@ -227,7 +227,7 @@ int main(void) {
     CHECK(stage_module(loadBase, HOT_BEHAVIOR_MODULE), "stage good module failed");
     char payloadDir[512];
     int pd = snprintf(payloadDir, sizeof(payloadDir), "%s/payload", loadBase);
-    CHECK(pd >= 0 && (size_t) pd < sizeof(payloadDir), "payloadDir truncation");
+    CHECK(pd >= 0 && (bytes) pd < sizeof(payloadDir), "payloadDir truncation");
     CHECK(MANIFEST_REFLECT("hot_behavior", payloadDir),
           "MANIFEST_REFLECT() failed");
     CHECK(MANIFEST_GENERATION("hot_behavior") == 1u,
@@ -242,7 +242,7 @@ int main(void) {
         rmtree(loadBase);
         return 1;
     }
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult r = Hot_poll(hot, &loaded);
     CHECK(r == HOT_OK, "first Hot_poll failed: %s", Hot_getLastError(hot));
     CHECK(Hot_getGeneration(hot) == 1u, "first load generation != 1");
@@ -251,12 +251,12 @@ int main(void) {
     CHECK(setFn != nullptr, "hot_behavior_set_phase_bias unresolved (gen 1)");
     CHECK(getFn != nullptr, "hot_behavior_get_phase_bias unresolved (gen 1)");
     if (setFn)
-        ((void (*)(float)) setFn)(PHASE_BIAS);
-    float bias0 = getFn ? ((float (*)(void)) getFn)() : 0.0f;
+        ((void (*)(f32)) setFn)(PHASE_BIAS);
+    f32 bias0 = getFn ? ((f32 (*)(void)) getFn)() : 0.0f;
     CHECK(bias0 == PHASE_BIAS, "phaseBias not applied in gen 1 (got %f)", bias0);
     HotFn pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "hot_behavior_pulse unresolved (gen 1)");
-    float pulse0 = pulseFn ? ((float (*)(double)) pulseFn)(1.0) : 0.0f;
+    f32 pulse0 = pulseFn ? ((f32 (*)(d64)) pulseFn)(1.0) : 0.0f;
 
     // --- 4. Promote generation 2 = the BAD (foreign-magic) build ------------
     CHECK(stage_module(loadBase, HOT_BEHAVIOR_BAD_MODULE), "stage bad module failed");
@@ -280,12 +280,12 @@ int main(void) {
     pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "pulse symbol lost after rollback (old image dead?)");
     if (pulseFn) {
-        float p = ((float (*)(double)) pulseFn)(1.0);
+        f32 p = ((f32 (*)(d64)) pulseFn)(1.0);
         CHECK(p == pulse0, "generation-1 pulse changed after rollback (%f != %f)",
               p, pulse0);
     }
     getFn = Hot_getSymbol(hot, "hot_behavior_get_phase_bias");
-    float biasBack = getFn ? ((float (*)(void)) getFn)() : 0.0f;
+    f32 biasBack = getFn ? ((f32 (*)(void)) getFn)() : 0.0f;
     CHECK(biasBack == PHASE_BIAS,
           "generation-1 phaseBias lost after rollback (got %f, %s)",
           biasBack, Hot_getLastError(hot));
@@ -313,17 +313,17 @@ int main(void) {
           (unsigned long long) Hot_getGeneration(hot));
     CHECK(Hot_getGeneration(hot) == 3u, "post-heal generation != 3");
     getFn = Hot_getSymbol(hot, "hot_behavior_get_phase_bias");
-    float biasHealed = getFn ? ((float (*)(void)) getFn)() : 0.0f;
+    f32 biasHealed = getFn ? ((f32 (*)(void)) getFn)() : 0.0f;
     CHECK(biasHealed == PHASE_BIAS,
           "phaseBias did not survive the heal swap (got %f)", biasHealed);
     pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "pulse symbol lost after heal");
     if (pulseFn) {
-        float p = ((float (*)(double)) pulseFn)(1.0);
+        f32 p = ((f32 (*)(d64)) pulseFn)(1.0);
         CHECK(p == pulse0, "pulse changed after heal (%f != %f)", p, pulse0);
     }
     printf("  healed to generation 3, phaseBias %f preserved end-to-end\n",
-           (double) biasHealed);
+           (d64) biasHealed);
 
     Hot_shutdown(hot);
     unsetenv("VEX_MANIFEST");

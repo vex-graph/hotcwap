@@ -39,7 +39,7 @@ int main(void) {
     CHECK(1);
 
     // Hot_poll on NULL reports the cold-seam error and zeroes the count.
-    uint32_t n = 99;
+    u32 n = 99;
     CHECK(Hot_poll(nullptr, &n) == HOT_ERROR_FILE_NOT_FOUND);
     CHECK(n == 0);
     CHECK(Hot_poll(nullptr, nullptr) == HOT_ERROR_FILE_NOT_FOUND);
@@ -56,7 +56,7 @@ int main(void) {
 
     // Module state ops on NULL are safely refused.
     char buf[32];
-    size_t len = 0;
+    bytes len = 0;
     CHECK(!Hot_saveModule(nullptr, "m", buf, sizeof buf, &len));
     CHECK(!Hot_restoreModule(nullptr, "m", buf, sizeof buf));
     CHECK(!Hot_migrateModule(nullptr, "m", "1.0.0", buf, sizeof buf, buf, sizeof buf, &len));

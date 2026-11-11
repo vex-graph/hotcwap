@@ -11,7 +11,7 @@
 
 typedef struct HotRetiredHandle {
     void *handle;          // retired dylib awaiting close (NULL = free slot)
-    uint32_t generation;   // poll generation when retired
+    u32 generation;   // poll generation when retired
 } HotRetiredHandle;
 
 #define HOT_RETIRED_MAX 16
@@ -19,7 +19,7 @@ typedef struct HotRetiredHandle {
 
 typedef struct HotRetireRing {
     HotRetiredHandle slots[HOT_RETIRED_MAX]; // parked handles
-    uint32_t generation;                     // current poll generation
+    u32 generation;                     // current poll generation
 } HotRetireRing;
 
 // Park a handle in the ring, closing expired entries first.

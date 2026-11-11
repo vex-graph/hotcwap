@@ -21,8 +21,8 @@
 
 typedef struct {
     char name[HOT_MANIFEST_MAX_NAME];
-    alignas(16) uint8_t buf[HOT_SAVE_SLOT_CAP];
-    size_t len;
+    alignas(16) u8 buf[HOT_SAVE_SLOT_CAP];
+    bytes len;
 } HotSaveSlot;
 
 #endif

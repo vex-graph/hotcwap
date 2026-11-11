@@ -56,8 +56,8 @@ static bool copy_file(const char *src, const char *dst) {
         fclose(in);
         return false;
     }
-    uint8_t buf[4096];
-    size_t n = 0;
+    u8 buf[4096];
+    bytes n = 0;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
             fclose(out);
@@ -78,10 +78,10 @@ static bool mkdir_p(const char *path) {
     if (errno != ENOENT)
         return false;
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -105,7 +105,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }
@@ -130,23 +130,23 @@ static bool rmtree(const char *path) {
 static bool stage_module(const char *loadBase) {
     char dir[512];
     int dl = snprintf(dir, sizeof(dir), "%s/payload", loadBase);
-    if (dl < 0 || (size_t) dl >= sizeof(dir))
+    if (dl < 0 || (bytes) dl >= sizeof(dir))
         return false;
     if (!mkdir_p(dir))
         return false;
     char dst[512];
     int n = snprintf(dst, sizeof(dst), "%s/hot_behavior.so", dir);
-    if (n < 0 || (size_t) n >= sizeof(dst))
+    if (n < 0 || (bytes) n >= sizeof(dst))
         return false;
     return copy_file(HOT_BEHAVIOR_MODULE, dst);
 }
 
 /** Waits within the test deadline for the requested module generation. */
-static bool wait_for_generation(HotModule *hot, uint32_t target) {
+static bool wait_for_generation(HotModule *hot, u32 target) {
     for (int i = 0; i < 100; i++) {
         struct timespec d = { 0, 20 * 1000 * 1000 };
         nanosleep(&d, 0);
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         HotResult r = Hot_poll(hot, &loaded);
         if (r != HOT_OK)
             return false;
@@ -196,13 +196,13 @@ int main(void) {
         rmtree(base);
         return 1;
     }
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult r = Hot_poll(hot, &loaded);
     CHECK(r == HOT_OK && Hot_getGeneration(hot) == 1u, "gen1 load failed: %s", Hot_getLastError(hot));
 
     // Drive far more swaps than the 16-slot ring holds.
     bool all_landed = true;
-    for (uint32_t g = 2; g <= SWAP_COUNT; g++) {
+    for (u32 g = 2; g <= SWAP_COUNT; g++) {
         CHECK(stage_module(base), "stage #%u failed", g);
         if (!MANIFEST_UPDATE("hot_behavior", payloadDir) || !MANIFEST_PROMOTE()) {
             CHECK(false, "promote #%u failed", g);
@@ -223,7 +223,7 @@ int main(void) {
     HotFn pulse = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulse != nullptr, "hot_behavior_pulse lost after the overflow run");
     if (pulse) {
-        float v = ((float (*)(double)) pulse)(1.0);
+        f32 v = ((f32 (*)(d64)) pulse)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "pulse returned %f after the overflow run", v);
     }
     printf("  %d swaps landed; ring (max 16) never corrupted; module resolves\n", SWAP_COUNT);

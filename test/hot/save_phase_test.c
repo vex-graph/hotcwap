@@ -35,7 +35,7 @@ static int g_failures = 0;
 // The state blob a module hands to the loader. Exported so the loader's
 // dlsym(handle, "Hot_save") finds it on this executable's image.
 __attribute__((visibility("default")))
-bool Hot_save(void *buf, size_t cap, size_t *out) {
+bool Hot_save(void *buf, bytes cap, bytes *out) {
     static const char pattern[] = "save-phase";
     if (buf == nullptr || out == nullptr || cap < sizeof(pattern))
         return false;

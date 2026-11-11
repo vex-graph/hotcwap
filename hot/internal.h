@@ -38,8 +38,8 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
 // Staging transport helpers (unique-path copy + digest).
 bool HotStaging_mkdirs(const char *path);
 bool HotStaging_copy(const char *src, const char *dst);
-bool HotStaging_digestMatches(const char *path, const uint8_t expected[32]);
-uint32_t HotStaging_nextSerial(void);
+bool HotStaging_digestMatches(const char *path, const u8 expected[32]);
+u32 HotStaging_nextSerial(void);
 const HotSectionDigest *HotStaging_coldDigest(HotModule *hot, const char *name);
 
 #endif

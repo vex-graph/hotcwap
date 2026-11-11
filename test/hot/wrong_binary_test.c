@@ -57,8 +57,8 @@ static bool copy_file(const char *src, const char *dst) {
         fclose(in);
         return false;
     }
-    uint8_t buf[4096];
-    size_t n = 0;
+    u8 buf[4096];
+    bytes n = 0;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
             fclose(out);
@@ -79,10 +79,10 @@ static bool mkdir_p(const char *path) {
     if (errno != ENOENT)
         return false;
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -106,7 +106,7 @@ static bool rmtree(const char *path) {
             continue;
         char child[512];
         int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
-        if (clen < 0 || (size_t) clen >= sizeof(child)) {
+        if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
         }
@@ -128,9 +128,9 @@ static bool rmtree(const char *path) {
 }
 
 /** Builds the bounded path to the loader's module payload directory. */
-static bool payload_dir(char *dest, size_t cap, const char *loadBase) {
+static bool payload_dir(char *dest, bytes cap, const char *loadBase) {
     int n = snprintf(dest, cap, "%s/payload", loadBase);
-    return n > 0 && (size_t) n < cap;
+    return n > 0 && (bytes) n < cap;
 }
 
 /** Stages the known-good module fixture for recovery assertions. */
@@ -142,7 +142,7 @@ static bool stage_good(const char *loadBase) {
         return false;
     char dst[512];
     int n = snprintf(dst, sizeof(dst), "%s/hot_behavior.so", dir);
-    if (n < 0 || (size_t) n >= sizeof(dst))
+    if (n < 0 || (bytes) n >= sizeof(dst))
         return false;
     return copy_file(HOT_BEHAVIOR_MODULE, dst);
 }
@@ -156,7 +156,7 @@ static bool stage_garbage(const char *loadBase) {
         return false;
     char dst[512];
     int n = snprintf(dst, sizeof(dst), "%s/hot_behavior.so", dir);
-    if (n < 0 || (size_t) n >= sizeof(dst))
+    if (n < 0 || (bytes) n >= sizeof(dst))
         return false;
     FILE *f = fopen(dst, "wb");
     if (!f)
@@ -167,11 +167,11 @@ static bool stage_garbage(const char *loadBase) {
 }
 
 /** Polls the loader until the expected generation is active or times out. */
-static bool wait_for_generation(HotModule *hot, uint32_t target) {
+static bool wait_for_generation(HotModule *hot, u32 target) {
     for (int i = 0; i < 80; i++) {
         struct timespec d = { 0, 20 * 1000 * 1000 };
         nanosleep(&d, 0);
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         HotResult r = Hot_poll(hot, &loaded);
         if (r != HOT_OK)
             return false;
@@ -222,7 +222,7 @@ int main(void) {
         rmtree(base);
         return 1;
     }
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult r = Hot_poll(hot, &loaded);
     CHECK(r == HOT_OK && Hot_getGeneration(hot) == 1u, "gen1 load failed: %s", Hot_getLastError(hot));
     printf("  A. good generation 1 loaded\n");
@@ -250,7 +250,7 @@ int main(void) {
     HotFn pulse = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulse != nullptr, "old code lost after a refused swap");
     if (pulse) {
-        float v = ((float (*)(double)) pulse)(1.0);
+        f32 v = ((f32 (*)(d64)) pulse)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "old code returned %f after a refused swap", v);
     }
     printf("  B. garbage section refused; generation stayed 1, old code live\n");
@@ -263,7 +263,7 @@ int main(void) {
     if (r != HOT_OK) {
         // a failed kick is acceptable; wait_for_generation retries
     }
-    uint32_t target = (uint32_t) MANIFEST_GENERATION("hot_behavior");
+    u32 target = (u32) MANIFEST_GENERATION("hot_behavior");
     CHECK(wait_for_generation(hot, target), "heal swap never landed (generation %llu)",
           (unsigned long long) Hot_getGeneration(hot));
     CHECK(Hot_getGeneration(hot) == target, "post-heal generation mismatch");

@@ -31,11 +31,11 @@
 #define T_BADAPP 130   // app v3 wants a contract that does not exist
 
 // The application's own entry points — the only types that are its policy.
-typedef float (*CorePulseFn)(double);
+typedef f32 (*CorePulseFn)(d64);
 typedef void  (*AppSetupFn)(CorePulseFn);
-typedef void  (*AppRunFn)(double);
+typedef void  (*AppRunFn)(d64);
 typedef void  (*AppTeardownFn)(void);
-typedef void  (*PluginFrameFn)(double);
+typedef void  (*PluginFrameFn)(d64);
 
 static volatile sig_atomic_t s_stop = 0;
 
@@ -44,10 +44,10 @@ static void onSignal(int sig) {
     s_stop = 1;
 }
 
-static double hostNow(void) {
+static d64 hostNow(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double) ts.tv_sec + (double) ts.tv_nsec / 1000000000.0;
+    return (d64) ts.tv_sec + (d64) ts.tv_nsec / 1000000000.0;
 }
 
 static void sleepMs(long ms) {
@@ -118,11 +118,11 @@ int main(int argc, char **argv) {
     }
     printf("\n");
 
-    double t0 = hostNow();
+    d64 t0 = hostNow();
     bool didCore = false, didApp = false, didBad = false;
 
     for (int tick = 0; tick < EX_TICKS && !s_stop; tick++) {
-        double now = hostNow() - t0;
+        d64 now = hostNow() - t0;
 
         // The promotion schedule stands in for a downloader. One verb each.
         if (!didCore && coreV2 && tick == T_CORE) {

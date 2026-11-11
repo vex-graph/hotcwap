@@ -21,7 +21,7 @@ void setup(CorePulseFn pulse) {
     printf("[app v3] setup — THIS SHOULD NEVER RUN\n");
 }
 
-void run(double nowSeconds) {
+void run(d64 nowSeconds) {
     (void) nowSeconds;
     printf("[app v3] run — THIS SHOULD NEVER RUN\n");
 }
@@ -30,20 +30,20 @@ void teardown(void) {
     s_corePulse = nullptr;
 }
 
-uint64_t Hot_requires_core_abi(void);
+u64 Hot_requires_core_abi(void);
 
-uint64_t Hot_requires_core_abi(void) {
+u64 Hot_requires_core_abi(void) {
     return 99u;
 }
 
-bool Hot_save(void *buf, size_t cap, size_t *outLen);
-bool Hot_restore(const void *buf, size_t len);
+bool Hot_save(void *buf, bytes cap, bytes *outLen);
+bool Hot_restore(const void *buf, bytes len);
 
-bool Hot_save(void *buf, size_t cap, size_t *outLen) {
+bool Hot_save(void *buf, bytes cap, bytes *outLen) {
     return AppState_save(&s_app, buf, cap, outLen);
 }
 
-bool Hot_restore(const void *buf, size_t len) {
+bool Hot_restore(const void *buf, bytes len) {
     return AppState_restore(&s_app, buf, len);
 }
 
@@ -56,9 +56,9 @@ static const HotModuleExport s_exports[] = {
     { "Hot_restore",           (void*) Hot_restore },
 };
 
-const void *Hot_getExports(uint32_t *outCount);
-const void *Hot_getExports(uint32_t *outCount) {
+const void *Hot_getExports(u32 *outCount);
+const void *Hot_getExports(u32 *outCount) {
     if (outCount)
-        *outCount = (uint32_t) (sizeof(s_exports) / sizeof(s_exports[0]));
+        *outCount = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;
 }

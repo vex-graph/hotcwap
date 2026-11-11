@@ -24,7 +24,7 @@
  *   bool Ledger_markUninstalled(Ledger *ledger), bool Ledger_forget(Ledger *ledger)
  * Projections: LedgerState Ledger_state(const Ledger *ledger)
  *   bool Ledger_hasRecord(const Ledger *ledger)
- *   bool Ledger_lastVersion(const Ledger *ledger, char *dest, size_t cap)
+ *   bool Ledger_lastVersion(const Ledger *ledger, char *dest, bytes cap)
  *   const char *Ledger_lastError(const Ledger *ledger)
  * Private helpers: state_dir, mkdir_p, sanitize, record_path, apply_record,
  *   write_state. They select the platform state directory, validate identity
@@ -55,7 +55,7 @@ struct Ledger {
 
 // --- the state directory (per user, outside any install tree) ----------------
 
-static bool state_dir(char *dest, size_t cap) {
+static bool state_dir(char *dest, bytes cap) {
 #if defined(VEX_PLATFORM_WINDOWS)
     const char *base = getenv("LOCALAPPDATA");
     if (base == nullptr || *base == '\0')
@@ -63,33 +63,33 @@ static bool state_dir(char *dest, size_t cap) {
     if (base == nullptr || *base == '\0')
         return false;
     int n = snprintf(dest, cap, "%s/vexgraph/ledger", base);
-    return n > 0 && (size_t) n < cap;
+    return n > 0 && (bytes) n < cap;
 #elif defined(VEX_PLATFORM_APPLE)
     const char *home = getenv("HOME");
     if (home == nullptr || *home == '\0')
         return false;
     int n = snprintf(dest, cap, "%s/Library/Application Support/vexgraph/ledger", home);
-    return n > 0 && (size_t) n < cap;
+    return n > 0 && (bytes) n < cap;
 #else
     const char *xdg = getenv("XDG_STATE_HOME");
     if (xdg != nullptr && *xdg != '\0') {
         int n = snprintf(dest, cap, "%s/vexgraph/ledger", xdg);
-        return n > 0 && (size_t) n < cap;
+        return n > 0 && (bytes) n < cap;
     }
     const char *home = getenv("HOME");
     if (home == nullptr || *home == '\0')
         return false;
     int n = snprintf(dest, cap, "%s/.local/state/vexgraph/ledger", home);
-    return n > 0 && (size_t) n < cap;
+    return n > 0 && (bytes) n < cap;
 #endif
 }
 
 static bool mkdir_p(const char *path) {
     char tmp[512];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len == 0 || len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -103,14 +103,14 @@ static bool mkdir_p(const char *path) {
 }
 
 // Sanitize org/app into one filename-safe key (non [alnum_] → '_').
-static void sanitize(const char *src, char *dest, size_t cap) {
-    size_t k = 0;
+static void sanitize(const char *src, char *dest, bytes cap) {
+    bytes k = 0;
     for (const char *p = src; *p != '\0' && k + 1 < cap; p++)
         dest[k++] = (isalnum((unsigned char) *p) || *p == '_') ? *p : '_';
     dest[k] = '\0';
 }
 
-static bool record_path(char *dest, size_t cap, const char *org, const char *app) {
+static bool record_path(char *dest, bytes cap, const char *org, const char *app) {
     char dir[400];
     if (!state_dir(dir, sizeof(dir)))
         return false;
@@ -118,7 +118,7 @@ static bool record_path(char *dest, size_t cap, const char *org, const char *app
     sanitize(org, o, sizeof(o));
     sanitize(app, a, sizeof(a));
     int n = snprintf(dest, cap, "%s/%s_%s.rec", dir, o, a);
-    return n > 0 && (size_t) n < cap;
+    return n > 0 && (bytes) n < cap;
 }
 
 // --- the class ---------------------------------------------------------------
@@ -127,7 +127,7 @@ static void apply_record(Ledger *ledger, const char *record) {
     const char *nl = strchr(record, '\n');
     if (nl == nullptr)
         return;
-    size_t slen = (size_t) (nl - record);
+    bytes slen = (bytes) (nl - record);
     if (slen == 0 || slen >= 16)
         return;
     if (slen == 9 && strncmp(record, "installed", 9) == 0)
@@ -138,7 +138,7 @@ static void apply_record(Ledger *ledger, const char *record) {
         return;
     const char *ver = nl + 1;
     const char *nl2 = strchr(ver, '\n');
-    size_t vlen = nl2 ? (size_t) (nl2 - ver) : strlen(ver);
+    bytes vlen = nl2 ? (bytes) (nl2 - ver) : strlen(ver);
     if (vlen >= sizeof((*ledger).version))
         vlen = sizeof((*ledger).version) - 1;
     memcpy((*ledger).version, ver, vlen);
@@ -164,7 +164,7 @@ Ledger *Ledger_open(const char *org, const char *app) {
     FILE *f = fopen((*ledger).path, "rb");
     if (f != nullptr) {
         char buf[256];
-        size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+        bytes n = fread(buf, 1, sizeof(buf) - 1, f);
         fclose(f);
         buf[n] = '\0';
         apply_record(ledger, buf);
@@ -185,12 +185,12 @@ static bool write_state(Ledger *ledger, const char *state, const char *version) 
     const char *ver = version ? version : "";
     char record[192];
     int n = snprintf(record, sizeof(record), "%s\n%s\n", state, ver);
-    if (n < 0 || (size_t) n >= sizeof(record))
+    if (n < 0 || (bytes) n >= sizeof(record))
         return false;
     FILE *f = fopen((*ledger).path, "wb");
     if (f == nullptr)
         return false;
-    bool ok = (fwrite(record, 1, (size_t) n, f) == (size_t) n);
+    bool ok = (fwrite(record, 1, (bytes) n, f) == (bytes) n);
     fclose(f);
     if (!ok)
         return false;
@@ -235,7 +235,7 @@ bool Ledger_hasRecord(const Ledger *ledger) {
 }
 
 /** Copies the last recorded version into the caller's bounded buffer. */
-bool Ledger_lastVersion(const Ledger *ledger, char *dest, size_t cap) {
+bool Ledger_lastVersion(const Ledger *ledger, char *dest, bytes cap) {
     if (ledger == nullptr || dest == nullptr || cap == 0)
         return false;
     snprintf(dest, cap, "%s", (*ledger).version);

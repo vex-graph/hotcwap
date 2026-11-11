@@ -34,16 +34,16 @@ HotSavePhase HotSaveSlot_phase(const HotModule *hot) {
 // state blob via its Hot_save export into saveSlots.
 static void snapshot_modules(HotModule *hot) {
     (*hot).saveCount = 0;
-    for (uint32_t i = 0; i < (*hot).module_count && (*hot).saveCount < HOT_MAX_MODULES; i++) {
+    for (u32 i = 0; i < (*hot).module_count && (*hot).saveCount < HOT_MAX_MODULES; i++) {
         HotModuleInternal *mod = &(*hot).modules[i];
         if (!(*mod).loaded || !(*mod).handle)
             continue;
-        typedef bool (*SaveFn)(void *, size_t, size_t *);
+        typedef bool (*SaveFn)(void *, bytes, bytes *);
         SaveFn save = (SaveFn) dlsym((*mod).handle, "Hot_save");
         if (!save)
             continue;
         HotSaveSlot *slot = &(*hot).saveSlots[(*hot).saveCount];
-        size_t n = 0;
+        bytes n = 0;
         if (save((*slot).buf, sizeof((*slot).buf), &n) && n > 0 && n <= sizeof((*slot).buf)) {
             strncpy((*slot).name, (*mod).name, HOT_MANIFEST_MAX_NAME - 1);
             (*slot).name[HOT_MANIFEST_MAX_NAME - 1] = '\0';
@@ -101,7 +101,7 @@ void HotSaveSlot_workerShutdown(HotModule *hot) {
 // then swaps directly, because there is nothing to preserve.
 bool HotSaveSlot_begin(HotModule *hot) {
     bool any = false;
-    for (uint32_t i = 0; i < (*hot).module_count && !any; i++) {
+    for (u32 i = 0; i < (*hot).module_count && !any; i++) {
         HotModuleInternal *mod = &(*hot).modules[i];
         if ((*mod).loaded && (*mod).handle && dlsym((*mod).handle, "Hot_save") != nullptr)
             any = true;
@@ -109,7 +109,7 @@ bool HotSaveSlot_begin(HotModule *hot) {
     if (!any)
         return false;
     pthread_mutex_lock(&(*hot).saveLock);
-    uint32_t expected = HOT_SAVE_IDLE;
+    u32 expected = HOT_SAVE_IDLE;
     bool requested = atomic_compare_exchange_strong_explicit(&(*hot).savePhase, &expected,
         HOT_SAVE_REQUESTED, memory_order_acq_rel, memory_order_relaxed);
     if (requested) {
@@ -129,7 +129,7 @@ bool HotSaveSlot_begin(HotModule *hot) {
 // publishes the worker's blob writes to the caller's later unlocked reads.
 bool HotSaveSlot_consume(HotModule *hot) {
     pthread_mutex_lock(&(*hot).saveLock);
-    uint32_t expected = HOT_SAVE_CAPTURED;
+    u32 expected = HOT_SAVE_CAPTURED;
     bool consumed = atomic_compare_exchange_strong_explicit(&(*hot).savePhase, &expected,
         HOT_SAVE_IDLE, memory_order_acq_rel, memory_order_relaxed);
     pthread_mutex_unlock(&(*hot).saveLock);

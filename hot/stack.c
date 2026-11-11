@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "types.h"
+
 // hot/stack.c — the loading order, owned by the library.
 //
 // The application says WHAT it is (core, app, plugins). This file decides the
@@ -19,18 +21,18 @@ struct HotStack {
 
     HotModule *plugins[HOT_STACK_MAX_PLUGINS];
     char pluginNames[HOT_STACK_MAX_PLUGINS][HOT_MANIFEST_MAX_NAME];
-    uint32_t pluginCount;
+    u32 pluginCount;
 
-    uint64_t coreContract;   // 0 = core never bound a contract
+    u64 coreContract;   // 0 = core never bound a contract
     bool appCompatible;
     char lastError[256];
 };
 
 // The two conventions the gate rests on. A module without them is simply
 // ungated rather than rejected: core optional, app optional.
-typedef uint64_t (*AbiFn)(void);
+typedef u64 (*AbiFn)();
 
-static uint64_t readExportAbi(HotModule *module, const char *symbol) {
+static u64 readExportAbi(HotModule *module, const char *symbol) {
     AbiFn fn = (AbiFn) (void*) Hot_getSymbol(module, symbol);
     return fn ? fn() : 0;
 }
@@ -54,14 +56,14 @@ HotStack *HotStack_2(const char *coreLibrary, const char *appLibrary) {
     return stack;
 }
 
-HotStack *HotStack_0(void) {
+HotStack *HotStack_0() {
     return HotStack_2(HOT_STACK_CORE_LIBRARY, HOT_STACK_APP_LIBRARY);
 }
 
 void HotStack_free(HotStack *stack) {
     if (!stack)
         return;
-    for (uint32_t i = 0; i < (*stack).pluginCount; i++)
+    for (u32 i = 0; i < (*stack).pluginCount; i++)
         if ((*stack).plugins[i])
             Hot_shutdown((*stack).plugins[i]);
     if ((*stack).app)
@@ -83,7 +85,7 @@ HotResult Hot_loadCore(HotStack *stack) {
         return HOT_ERROR_INIT_FAILED;
     }
 
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult result = Hot_poll((*stack).core, &loaded);
     if (result != HOT_OK || loaded == 0) {
         const char *why = Hot_getLastError((*stack).core);
@@ -106,7 +108,7 @@ HotResult Hot_loadCore(HotStack *stack) {
 static bool appAcceptsContract(HotStack *stack) {
     if (!(*stack).app || (*stack).coreContract == 0)
         return true;
-    uint64_t wants = readExportAbi((*stack).app, "Hot_requires_core_abi");
+    u64 wants = readExportAbi((*stack).app, "Hot_requires_core_abi");
     if (wants == 0)
         return true;   // app declares no requirement
     return wants == (*stack).coreContract;
@@ -122,7 +124,7 @@ HotResult Hot_loadApplication(HotStack *stack) {
         return HOT_ERROR_INIT_FAILED;
     }
 
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult result = Hot_poll((*stack).app, &loaded);
     if (result != HOT_OK || loaded == 0) {
         const char *why = Hot_getLastError((*stack).app);
@@ -165,7 +167,7 @@ HotResult Hot_loadPlugin(HotStack *stack, const char *library) {
         return HOT_ERROR_INIT_FAILED;
     }
 
-    uint32_t loaded = 0;
+    u32 loaded = 0;
     HotResult result = Hot_poll(plugin, &loaded);
     if (result != HOT_OK || loaded == 0) {
         const char *why = Hot_getLastError(plugin);
@@ -175,7 +177,7 @@ HotResult Hot_loadPlugin(HotStack *stack, const char *library) {
         return result == HOT_OK ? HOT_ERROR_FILE_NOT_FOUND : result;
     }
 
-    uint32_t slot = (*stack).pluginCount++;
+    u32 slot = (*stack).pluginCount++;
     (*stack).plugins[slot] = plugin;
     snprintf((*stack).pluginNames[slot], HOT_MANIFEST_MAX_NAME, "%s", library);
     return HOT_OK;
@@ -193,13 +195,13 @@ HotResult Hot_pollAll(HotStack *stack, HotStackChanged *changed) {
     // CORE FIRST. Nothing above it can be validated until the contract is
     // current.
     if ((*stack).core) {
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         HotResult coreResult = Hot_poll((*stack).core, &loaded);
         if (coreResult != HOT_OK)
             result = coreResult;
         if (loaded > 0) {
             moved.core = true;
-            uint64_t contract = readExportAbi((*stack).core, "Hot_contract_abi");
+            u64 contract = readExportAbi((*stack).core, "Hot_contract_abi");
             if (contract != (*stack).coreContract) {
                 (*stack).coreContract = contract;
                 // The loaded app image was admitted against the previous
@@ -224,7 +226,7 @@ HotResult Hot_pollAll(HotStack *stack, HotStackChanged *changed) {
     // load, it must simply not RUN. Gate after the commit, never before: the
     // requirement lives inside the image being promoted.
     if ((*stack).app) {
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         HotResult appResult = Hot_poll((*stack).app, &loaded);
         if (appResult != HOT_OK)
             result = appResult;
@@ -244,10 +246,10 @@ HotResult Hot_pollAll(HotStack *stack, HotStackChanged *changed) {
     }
 
     // PLUGINS LAST and independently: a plugin never blocks core or app.
-    for (uint32_t i = 0; i < (*stack).pluginCount; i++) {
+    for (u32 i = 0; i < (*stack).pluginCount; i++) {
         if (!(*stack).plugins[i])
             continue;
-        uint32_t loaded = 0;
+        u32 loaded = 0;
         if (Hot_poll((*stack).plugins[i], &loaded) != HOT_OK)
             continue;
         if (loaded > 0)
@@ -269,17 +271,17 @@ HotModule *Hot_getApplication(const HotStack *stack) {
     return stack ? (*stack).app : nullptr;
 }
 
-HotModule *Hot_getPlugin(const HotStack *stack, uint32_t index) {
+HotModule *Hot_getPlugin(const HotStack *stack, u32 index) {
     if (!stack || index >= (*stack).pluginCount)
         return nullptr;
     return (*stack).plugins[index];
 }
 
-uint32_t Hot_getPluginCount(const HotStack *stack) {
+u32 Hot_getPluginCount(const HotStack *stack) {
     return stack ? (*stack).pluginCount : 0;
 }
 
-uint64_t Hot_getCoreContract(const HotStack *stack) {
+u64 Hot_getCoreContract(const HotStack *stack) {
     return stack ? (*stack).coreContract : 0;
 }
 

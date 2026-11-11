@@ -24,7 +24,7 @@
 // The loader finds all of them through Hot_getExports(); it never assumes a
 // name. `setup`/`run` are the convention WE chose, not a hotcwap rule.
 
-typedef float (*CorePulseFn)(double);
+typedef f32 (*CorePulseFn)(d64);
 
 #define APP_MAGIC  0x41505020u   /* "APP " */
 #define APP_SCHEMA 1u
@@ -34,10 +34,10 @@ typedef float (*CorePulseFn)(double);
 #endif
 
 typedef struct AppState {
-    uint32_t magic;
-    uint32_t schema;
-    uint64_t frames;
-    double   accumulated;
+    u32 magic;
+    u32 schema;
+    u64 frames;
+    d64   accumulated;
 } AppState;
 
 static inline void AppState_init(AppState *state) {
@@ -47,7 +47,7 @@ static inline void AppState_init(AppState *state) {
     (*state).accumulated = 0.0;
 }
 
-static inline bool AppState_save(const AppState *state, void *buf, size_t cap, size_t *outLen) {
+static inline bool AppState_save(const AppState *state, void *buf, bytes cap, bytes *outLen) {
     if (outLen)
         *outLen = 0;
     if (!buf || !outLen || cap < sizeof(AppState))
@@ -57,7 +57,7 @@ static inline bool AppState_save(const AppState *state, void *buf, size_t cap, s
     return true;
 }
 
-static inline bool AppState_restore(AppState *state, const void *buf, size_t len) {
+static inline bool AppState_restore(AppState *state, const void *buf, bytes len) {
     if (!buf || len != sizeof(AppState))
         return false;
     AppState incoming;

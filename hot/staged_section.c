@@ -18,19 +18,19 @@
 // a dlclose. Nothing in the live table has moved yet, so a rejection needs no
 // rollback.
 
-static uint32_t s_loadSerial = 0;
+static u32 s_loadSerial = 0;
 
-uint32_t HotStaging_nextSerial(void) {
+u32 HotStaging_nextSerial(void) {
     return ++s_loadSerial;
 }
 
 // mkdir -p, bounded by HOT_PATH_LEN.
 bool HotStaging_mkdirs(const char *path) {
     char tmp[HOT_PATH_LEN];
-    size_t len = snprintf(tmp, sizeof(tmp), "%s", path);
+    bytes len = snprintf(tmp, sizeof(tmp), "%s", path);
     if (len == 0 || len >= sizeof(tmp))
         return false;
-    for (size_t i = 1; i < len; i++) {
+    for (bytes i = 1; i < len; i++) {
         if (tmp[i] != '/')
             continue;
         tmp[i] = '\0';
@@ -53,7 +53,7 @@ bool HotStaging_copy(const char *src, const char *dst) {
         return false;
     }
     unsigned char buf[8192];
-    size_t n = 0;
+    bytes n = 0;
     bool ok = true;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
@@ -70,14 +70,14 @@ bool HotStaging_copy(const char *src, const char *dst) {
 
 // Hash the private load copy, not a previously checked pathname. Stable trusted
 // parents still required; this is not protection against same-user mutation.
-bool HotStaging_digestMatches(const char *path, const uint8_t expected[32]) {
+bool HotStaging_digestMatches(const char *path, const u8 expected[32]) {
     FILE *file = fopen(path, "rb");
     if (file == nullptr)
         return false;
     CryptoSha256 hash;
     Crypto_sha256Init(&hash);
-    uint8_t buffer[4096], actual[32];
-    size_t n;
+    u8 buffer[4096], actual[32];
+    bytes n;
     while ((n = fread(buffer, 1, sizeof(buffer), file)) > 0)
         Crypto_sha256Update(&hash, buffer, n);
     bool ok = !ferror(file);
@@ -88,7 +88,7 @@ bool HotStaging_digestMatches(const char *path, const uint8_t expected[32]) {
 }
 
 const HotSectionDigest *HotStaging_coldDigest(HotModule *hot, const char *name) {
-    for (size_t i = 0; i < (*hot).coldCount; ++i) {
+    for (bytes i = 0; i < (*hot).coldCount; ++i) {
         const HotSectionDigest *digest = &(*hot).coldDigests[i];
         if ((*digest).filename != nullptr && strcmp((*digest).filename, name) == 0)
             return digest;
@@ -98,7 +98,7 @@ const HotSectionDigest *HotStaging_coldDigest(HotModule *hot, const char *name) 
 
 // True when `name` is an image the loader should map.
 bool HotStagedSection_isImage(const char *name) {
-    size_t nlen = strlen(name);
+    bytes nlen = strlen(name);
     return (nlen > 6 && strcmp(name + nlen - 6, ".dylib") == 0) ||
            (nlen > 3 && strcmp(name + nlen - 3, ".so") == 0);
 }
@@ -110,7 +110,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
                                  const char *name, HotStagedSection *out) {
     char path[HOT_PATH_LEN];
     int plen = snprintf(path, sizeof(path), "%s/%s", libDir, name);
-    if (plen < 0 || (size_t) plen >= sizeof(path)) {
+    if (plen < 0 || (bytes) plen >= sizeof(path)) {
         snprintf((*hot).last_error, sizeof((*hot).last_error),
                  "Section path '%s/%s' truncated", libDir, name);
         return HOT_ERROR_FILE_NOT_FOUND;
@@ -158,14 +158,14 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
         return HOT_ERROR_DLOPEN_FAILED;
     }
 
-    const uint64_t *abi = (*hot).coldCount ? dlsym(handle, "Hot_cold_abi") : nullptr;
+    const u64 *abi = (*hot).coldCount ? dlsym(handle, "Hot_cold_abi") : nullptr;
     if ((*hot).coldCount && (abi == nullptr || *abi != HOT_COLD_ABI_VERSION)) {
         dlclose(handle);
         snprintf((*hot).last_error, sizeof((*hot).last_error), "cold ABI mismatch: %s", name);
         return HOT_ERROR_ABI_MISMATCH;
     }
 
-    typedef const void *(*TrampolinesFn)(uint32_t*);
+    typedef const void *(*TrampolinesFn)(u32*);
     TrampolinesFn get_trampolines = (TrampolinesFn) dlsym(handle, "Hot_getExports");
     if (!get_trampolines) {
         dlclose(handle);
@@ -183,7 +183,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
     char *dot = strrchr(mod_name, '.');
     if (dot)
         (*dot) = '\0';
-    size_t nlen = strlen(name);
+    bytes nlen = strlen(name);
     if (nlen > 6 && strcmp(name + nlen - 3, ".so") == 0 && strncmp(mod_name, "lib", 3) == 0)
         memmove(mod_name, mod_name + 3, strlen(mod_name + 3) + 1);
 
@@ -205,7 +205,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
     // empty or half-filled table is refused before anything is adopted.
     const struct { const char *name; void *fn; } *exports = (*out).trampolines;
     bool valid = exports != nullptr && (*out).trampolineCount > 0;
-    for (uint32_t k = 0; valid && k < (*out).trampolineCount; ++k)
+    for (u32 k = 0; valid && k < (*out).trampolineCount; ++k)
         valid = exports[k].name != nullptr && exports[k].fn != nullptr &&
                 exports[k].name[0] != '\0' &&
                 strnlen(exports[k].name, HOT_MANIFEST_MAX_NAME) < HOT_MANIFEST_MAX_NAME;

@@ -61,9 +61,9 @@
  * STRUCT FIELDS (defined here; hot/hot.h keeps the type opaque):
  * ----------------------------------------------------------------------------
  *   char library[HOT_MANIFEST_MAX_NAME]; // manifest library key this loader watches
- *   uint64_t generation;                 // last COMMITTED bin/current/<lib> generation
+ *   u64 generation;                 // last COMMITTED bin/current/<lib> generation
  *   HotModuleInternal modules[HOT_MAX_MODULES]; // per-section slots (max 32)
- *   uint32_t module_count;               // used slots in modules[]
+ *   u32 module_count;               // used slots in modules[]
  *   char last_error[256];                // last diagnostic string
  *   HotTrampolineTable trampolines;      // per-instance symbols
  *   HotRetireRing retireRing;            // per-instance generational close
@@ -72,9 +72,9 @@
  *   pthread_cond_t saveCond;             // worker sleep/wake
  *   atomic_uint savePhase;               // HotSavePhase: the one handshake word
  *   HotSaveSlot saveSlots[HOT_MAX_MODULES]; // snapshot blobs (worker writes, poll reads)
- *   size_t saveCount;                    // populated slots
+ *   bytes saveCount;                    // populated slots
  *   const HotSectionDigest *coldDigests; // borrowed trusted cold descriptor
- *   size_t coldCount;                    // descriptor extent; zero in legacy polls
+ *   bytes coldCount;                    // descriptor extent; zero in legacy polls
  *   bool recoveryRequired;              // unresolved disk rollback; stop admission
  *
  * PRIVATE HELPERS (kept file-local pure-data only, each with full fields):
@@ -87,15 +87,15 @@
  *
  *   HotSaveSlot (per-section state blob captured off-thread):
  *     char name[HOT_MANIFEST_MAX_NAME];  // section stem the blob belongs to
- *     uint8_t buf[HOT_SAVE_SLOT_CAP];    // module Hot_save payload (4 KiB)
- *     size_t len;                        // valid Bytes in buf
+ *     u8 buf[HOT_SAVE_SLOT_CAP];    // module Hot_save payload (4 KiB)
+ *     bytes len;                        // valid Bytes in buf
  *
  *   HotStagedSection (verify-phase staging, transient inside perform_swap):
  *     HotModuleInternal *mod;   // resolved slot (created if new)
  *     char path[HOT_PATH_LEN];  // dylib path
  *     void *handle;             // dlopened, not yet adopted
  *     const void *trampolines;  // Hot_getExports table
- *     uint32_t trampolineCount; // entries
+ *     u32 trampolineCount; // entries
  *
  *   Segregated (own files, see their overviews):
  *     HotTrampoline in hot/hot_trampoline.h and hot/hot_trampoline.c
@@ -236,7 +236,7 @@ void Hot_shutdown(HotModule *hot) {
     pthread_mutex_destroy(&(*hot).saveLock);
     pthread_cond_destroy(&(*hot).saveCond);
 
-    for (uint32_t i = 0; i < (*hot).module_count; i++) {
+    for (u32 i = 0; i < (*hot).module_count; i++) {
         HotModuleInternal *mod = &(*hot).modules[i];
         if ((*mod).handle) {
             typedef void (*ShutdownFn)(void);
@@ -267,10 +267,10 @@ void Hot_shutdown(HotModule *hot) {
 // full success, so a failed swap re-enters the handshake on the next poll
 // and self-heals once the payload is fixed.
 /** Stages and validates every section, restores saved state, then commits the generation. */
-static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint32_t *outLoaded) {
+static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *outLoaded) {
     HotTrampolineTable *table = &(*hot).trampolines;
     HotRetireRing *ring = &(*hot).retireRing;
-    uint32_t loaded = 0;
+    u32 loaded = 0;
 
     DIR *dir = opendir(libDir);
     if (!dir) {
@@ -283,7 +283,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
     // and validated by hot/staged_section.c; a rejection closes everything
     // staged so far and leaves the live generation untouched.
     HotStagedSection staged[HOT_MAX_MODULES];
-    uint32_t stagedCount = 0;
+    u32 stagedCount = 0;
     struct dirent *ent;
     while ((ent = readdir(dir)) != nullptr) {
         // readdir storage dies at closedir; diagnostics on rejection must own
@@ -294,14 +294,14 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
             continue;
         if (!MANIFEST_ALLOWS((*hot).library, name)) {
             closedir(dir);
-            for (uint32_t i = 0; i < stagedCount; ++i)
+            for (u32 i = 0; i < stagedCount; ++i)
                 dlclose(staged[i].handle);
             snprintf((*hot).last_error, sizeof((*hot).last_error), "undeclared section: %s", name);
             return HOT_ERROR_ABI_MISMATCH;
         }
         if (stagedCount >= HOT_MAX_MODULES) {
             closedir(dir);
-            for (uint32_t i = 0; i < stagedCount; i++)
+            for (u32 i = 0; i < stagedCount; i++)
                 dlclose(staged[i].handle);
             snprintf((*hot).last_error, sizeof((*hot).last_error),
                      "Too many sections (limit %d) in %s", HOT_MAX_MODULES, libDir);
@@ -311,7 +311,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
         HotResult admitted = HotStagedSection_admit(hot, libDir, name, &staged[stagedCount]);
         if (admitted != HOT_OK) {
             closedir(dir);
-            for (uint32_t i = 0; i < stagedCount; i++)
+            for (u32 i = 0; i < stagedCount; i++)
                 dlclose(staged[i].handle);
             return admitted;
         }
@@ -320,13 +320,13 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
         // order-dependent; reject the complete candidate before any restore
         // or target publication.
         bool duplicate = false;
-        for (uint32_t i = 0; i < stagedCount; ++i)
+        for (u32 i = 0; i < stagedCount; ++i)
             if (staged[i].mod == staged[stagedCount].mod)
                 duplicate = true;
         if (duplicate) {
             closedir(dir);
             dlclose(staged[stagedCount].handle);
-            for (uint32_t i = 0; i < stagedCount; i++)
+            for (u32 i = 0; i < stagedCount; i++)
                 dlclose(staged[i].handle);
             snprintf((*hot).last_error, sizeof((*hot).last_error),
                      "duplicate section identity: %s", name);
@@ -340,15 +340,15 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
     if ((*hot).coldCount) {
         // Duplicate public identities make dispatch order-dependent; reject the
         // complete candidate before any restore or target publication.
-        for (uint32_t i = 0; i < stagedCount; ++i) {
+        for (u32 i = 0; i < stagedCount; ++i) {
             const struct { const char *name; void *fn; } *left = staged[i].trampolines;
-            for (uint32_t k = 0; k < staged[i].trampolineCount; ++k) {
-                for (uint32_t j = 0; j <= i; ++j) {
+            for (u32 k = 0; k < staged[i].trampolineCount; ++k) {
+                for (u32 j = 0; j <= i; ++j) {
                     const struct { const char *name; void *fn; } *right = staged[j].trampolines;
-                    uint32_t limit = j == i ? k : staged[j].trampolineCount;
-                    for (uint32_t r = 0; r < limit; ++r) {
+                    u32 limit = j == i ? k : staged[j].trampolineCount;
+                    for (u32 r = 0; r < limit; ++r) {
                         if (strcmp(left[k].name, right[r].name) == 0) {
-                            for (uint32_t m = 0; m < stagedCount; ++m)
+                            for (u32 m = 0; m < stagedCount; ++m)
                                 dlclose(staged[m].handle);
                             return HOT_ERROR_ABI_MISMATCH;
                         }
@@ -364,24 +364,24 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
         return HOT_ERROR_FILE_NOT_FOUND;
     }
 
-    uint64_t newGen = MANIFEST_GENERATION((*hot).library);
+    u64 newGen = MANIFEST_GENERATION((*hot).library);
 
     // Cold updates cannot strand an old export in a handle we will unload.
     // Removal is an ABI change requiring a resident host restart.
     if ((*hot).coldCount) {
-        uint32_t oldCount = atomic_load(&(*table).count);
-        for (uint32_t r = 0; r < oldCount; ++r) {
+        u32 oldCount = atomic_load(&(*table).count);
+        for (u32 r = 0; r < oldCount; ++r) {
             HotTrampoline *row = &(*table).rows[r];
             bool present = false;
-            for (uint32_t i = 0; i < stagedCount; ++i) {
+            for (u32 i = 0; i < stagedCount; ++i) {
                 const struct { const char *name; void *fn; } *exports = staged[i].trampolines;
-                for (uint32_t k = 0; k < staged[i].trampolineCount; ++k) {
+                for (u32 k = 0; k < staged[i].trampolineCount; ++k) {
                     if (strcmp((*row).name, exports[k].name) == 0)
                         present = true;
                 }
             }
             if (!present) {
-                for (uint32_t i = 0; i < stagedCount; ++i)
+                for (u32 i = 0; i < stagedCount; ++i)
                     dlclose(staged[i].handle);
                 snprintf((*hot).last_error, sizeof((*hot).last_error), "cold update removed export: %s", (*row).name);
                 return HOT_ERROR_ABI_MISMATCH;
@@ -395,24 +395,24 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
     // closes, the old generation (code + trampolines + state) stays live, and
     // the generation does NOT advance — the next poll re-enters the handshake
     // and re-attempts once the payload is fixed.
-    for (size_t i = 0; i < (*hot).saveCount; i++) {
+    for (bytes i = 0; i < (*hot).saveCount; i++) {
         HotSaveSlot *slot = &(*hot).saveSlots[i];
         HotStagedSection *match = nullptr;
-        for (uint32_t k = 0; k < stagedCount; k++) {
+        for (u32 k = 0; k < stagedCount; k++) {
             if (strcmp((*staged[k].mod).name, (*slot).name) == 0)
                 match = &staged[k];
         }
         if (!match)
             continue; // section absent from the new set; its old slot stays mapped
-        typedef bool (*RestoreFn)(const void *, size_t);
+        typedef bool (*RestoreFn)(const void *, bytes);
         RestoreFn restore = (RestoreFn) dlsym((*match).handle, "Hot_restore");
         bool restored = (restore && restore((*slot).buf, (*slot).len));
         if (!restored && restore) {
-            typedef bool (*MigrateFn)(const char *, const void *, size_t, void *, size_t, size_t *);
+            typedef bool (*MigrateFn)(const char *, const void *, bytes, void *, bytes, bytes *);
             MigrateFn migrate = (MigrateFn) dlsym((*match).handle, "Hot_migrate");
             if (migrate) {
-                alignas(16) uint8_t migratedBuf[HOT_SAVE_SLOT_CAP];
-                size_t migratedLen = 0;
+                alignas(16) u8 migratedBuf[HOT_SAVE_SLOT_CAP];
+                bytes migratedLen = 0;
                 char oldGenStr[32];
                 snprintf(oldGenStr, sizeof(oldGenStr), "%llu.0.0", (unsigned long long) (*hot).generation);
                 if ((migrate(oldGenStr, (*slot).buf, (*slot).len, migratedBuf, sizeof(migratedBuf), &migratedLen) ||
@@ -423,7 +423,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
             }
         }
         if (!restored) {
-            for (uint32_t k = 0; k < stagedCount; k++)
+            for (u32 k = 0; k < stagedCount; k++)
                 dlclose(staged[k].handle); // never adopted — safe to close directly
             (*hot).saveCount = 0;
             snprintf((*hot).last_error, sizeof((*hot).last_error),
@@ -439,11 +439,11 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
     // Reserve every candidate symbol before any target changes. The caller must
     // exclude table readers during cold backing growth; published targets alone
     // do not make relocation safe. Repeated updates reuse existing names.
-    uint64_t required = atomic_load(&(*table).count);
-    for (uint32_t i = 0; i < stagedCount; ++i)
+    u64 required = atomic_load(&(*table).count);
+    for (u32 i = 0; i < stagedCount; ++i)
         required += staged[i].trampolineCount;
-    if (required > INT_MAX || !HotTrampolineTable_reserve(table, (uint32_t) required)) {
-        for (uint32_t i = 0; i < stagedCount; ++i)
+    if (required > INT_MAX || !HotTrampolineTable_reserve(table, (u32) required)) {
+        for (u32 i = 0; i < stagedCount; ++i)
             dlclose(staged[i].handle);
         (*hot).saveCount = 0;
         return HOT_ERROR_OUT_OF_MEMORY;
@@ -451,7 +451,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
 
     // Phase C — commit: retire old handles, adopt new, swap trampoline rows.
     // State already lives inside the fresh images (Phase B restored in place).
-    for (uint32_t i = 0; i < stagedCount; i++) {
+    for (u32 i = 0; i < stagedCount; i++) {
         HotStagedSection *s = &staged[i];
         HotModuleInternal *mod = (*s).mod;
         if ((*mod).handle)
@@ -462,7 +462,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
         (*mod).path[HOT_PATH_LEN - 1] = '\0';
 
         const struct { const char *name; void *fn; } *entries = (*s).trampolines;
-        for (uint32_t k = 0; k < (*s).trampolineCount; k++) {
+        for (u32 k = 0; k < (*s).trampolineCount; k++) {
             int tidx = HotTrampolineTable_find(table, entries[k].name);
             if (tidx < 0)
                 tidx = HotTrampolineTable_register(table, entries[k].name);
@@ -484,22 +484,22 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, uint3
 
 // Cold release: copy and hash ALL private images before any dlopen constructor
 // executes. Stable trusted parents and external serialization remain mandatory.
-static HotResult perform_swap(HotModule *hot, const char *libDir, uint32_t *outLoaded) {
+static HotResult perform_swap(HotModule *hot, const char *libDir, u32 *outLoaded) {
     if (!(*hot).coldCount)
         return perform_verified_swap(hot, libDir, outLoaded);
     char privateDir[HOT_PATH_LEN];
     int n = snprintf(privateDir, sizeof(privateDir), "%s/cache/load/%s/release-%u",
                      MANIFEST_ROOT(), (*hot).library, HotStaging_nextSerial());
-    if (n < 0 || (size_t) n >= sizeof(privateDir) || !HotStaging_mkdirs(privateDir))
+    if (n < 0 || (bytes) n >= sizeof(privateDir) || !HotStaging_mkdirs(privateDir))
         return HOT_ERROR_FILE_NOT_FOUND;
     HotResult result = HOT_ERROR_ABI_MISMATCH;
-    size_t copied = 0;
-    for (size_t i = 0; i < (*hot).coldCount; ++i) {
+    bytes copied = 0;
+    for (bytes i = 0; i < (*hot).coldCount; ++i) {
         const HotSectionDigest *item = &(*hot).coldDigests[i];
         char source[HOT_PATH_LEN], dest[HOT_PATH_LEN];
         n = snprintf(source, sizeof(source), "%s/%s", libDir, (*item).filename);
         int d = snprintf(dest, sizeof(dest), "%s/%s", privateDir, (*item).filename);
-        if (n < 0 || (size_t) n >= sizeof(source) || d < 0 || (size_t) d >= sizeof(dest))
+        if (n < 0 || (bytes) n >= sizeof(source) || d < 0 || (bytes) d >= sizeof(dest))
             break;
         copied = i + 1; // cleanup also owns any partial failed copy
         if (!HotStaging_copy(source, dest) || !HotStaging_digestMatches(dest, (*item).sha256))
@@ -507,11 +507,11 @@ static HotResult perform_swap(HotModule *hot, const char *libDir, uint32_t *outL
         if (i + 1 == (*hot).coldCount)
             result = perform_verified_swap(hot, privateDir, outLoaded);
     }
-    for (size_t i = 0; i < copied; ++i) {
+    for (bytes i = 0; i < copied; ++i) {
         const HotSectionDigest *item = &(*hot).coldDigests[i];
         char dest[HOT_PATH_LEN];
         n = snprintf(dest, sizeof(dest), "%s/%s", privateDir, (*item).filename);
-        if (n >= 0 && (size_t) n < sizeof(dest))
+        if (n >= 0 && (bytes) n < sizeof(dest))
             unlink(dest);
     }
     rmdir(privateDir);
@@ -519,7 +519,7 @@ static HotResult perform_swap(HotModule *hot, const char *libDir, uint32_t *outL
 }
 
 HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
-                         const HotSectionDigest *digests, size_t count, uint32_t *loadedCount) {
+                         const HotSectionDigest *digests, bytes count, u32 *loadedCount) {
     if (loadedCount != nullptr)
         *loadedCount = 0;
     if (hot != nullptr && (*hot).recoveryRequired) {
@@ -533,7 +533,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         return HOT_ERROR_INIT_FAILED;
     }
     HotResult result = HOT_ERROR_ABI_MISMATCH;
-    uint32_t originalModuleCount = (*hot).module_count;
+    u32 originalModuleCount = (*hot).module_count;
     DIR *dir = opendir(payloadDir);
     if (dir == nullptr) {
         THROW("cold update: cannot open payload");
@@ -541,7 +541,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
     }
     (*hot).coldDigests = digests;
     (*hot).coldCount = count;
-    size_t found = 0;
+    bytes found = 0;
     struct dirent *entry;
     while ((entry = readdir(dir)) != nullptr) {
         const char *name = (*entry).d_name;
@@ -551,11 +551,11 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         char path[HOT_PATH_LEN];
         int n = snprintf(path, sizeof(path), "%s/%s", payloadDir, name);
         struct stat info;
-        size_t len = strlen(name);
+        bytes len = strlen(name);
         bool dylib = (len > 6 && strcmp(name + len - 6, ".dylib") == 0) ||
                      (len > 3 && strcmp(name + len - 3, ".so") == 0);
         if (digest == nullptr || !dylib || !MANIFEST_ALLOWS((*hot).library, name) ||
-            n < 0 || (size_t) n >= sizeof(path) || lstat(path, &info) != 0 ||
+            n < 0 || (bytes) n >= sizeof(path) || lstat(path, &info) != 0 ||
             !S_ISREG(info.st_mode) || !HotStaging_digestMatches(path, (*digest).sha256))
             break;
         ++found;
@@ -563,20 +563,20 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
     bool complete = entry == nullptr && found == count;
     closedir(dir);
     // Duplicate descriptor names would otherwise disguise an incomplete set.
-    for (size_t i = 0; complete && i < count; ++i) {
+    for (bytes i = 0; complete && i < count; ++i) {
         const HotSectionDigest *item = &digests[i];
         if ((*item).filename == nullptr || !MANIFEST_ALLOWS((*hot).library, (*item).filename)) {
             complete = false;
             break;
         }
-        for (size_t k = 0; k < i; ++k) {
+        for (bytes k = 0; k < i; ++k) {
             const HotSectionDigest *prior = &digests[k];
             if (strcmp((*prior).filename, (*item).filename) == 0)
                 complete = false;
         }
     }
     // The first cold release must retain every previously loaded section.
-    for (uint32_t i = 0; complete && i < (*hot).module_count; ++i) {
+    for (u32 i = 0; complete && i < (*hot).module_count; ++i) {
         HotModuleInternal *module = &(*hot).modules[i];
         if (!(*module).loaded)
             continue;
@@ -588,16 +588,16 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         goto resolve;
     (*hot).saveCount = 0;
     // Synchronous under caller exclusion: no worker reads concurrently with use.
-    for (uint32_t i = 0; i < (*hot).module_count; ++i) {
+    for (u32 i = 0; i < (*hot).module_count; ++i) {
         HotModuleInternal *module = &(*hot).modules[i];
         if (!(*module).loaded)
             continue;
-        typedef bool (*SaveFn)(void *, size_t, size_t *);
+        typedef bool (*SaveFn)(void *, bytes, bytes *);
         SaveFn save = (SaveFn) dlsym((*module).handle, "Hot_save");
         if (save == nullptr)
             continue; // stateless module, or all state belongs to resident host
         HotSaveSlot *slot = &(*hot).saveSlots[(*hot).saveCount];
-        size_t length = 0;
+        bytes length = 0;
         if (!save((*slot).buf, sizeof((*slot).buf), &length) || length == 0 || length > sizeof((*slot).buf)) {
             result = HOT_ERROR_RESTORE_FAILED;
             goto resolve;
@@ -610,7 +610,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         result = HOT_ERROR_FILE_NOT_FOUND;
         goto resolve;
     }
-    uint64_t oldGeneration = MANIFEST_GENERATION((*hot).library);
+    u64 oldGeneration = MANIFEST_GENERATION((*hot).library);
     if (!MANIFEST_PROMOTE_LIBRARY((*hot).library)) {
         (*hot).recoveryRequired = MANIFEST_REQUIRES_RECOVERY();
         result = (*hot).recoveryRequired ? HOT_ERROR_RECOVERY_REQUIRED : HOT_ERROR_INIT_FAILED;
@@ -631,8 +631,8 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         HotRetireRing_drainAll(&(*hot).retireRing);
         // Cold publication needs no old-address fallback; those images are gone.
         HotTrampolineTable *table = &(*hot).trampolines;
-        uint32_t rows = atomic_load(&(*table).count);
-        for (uint32_t i = 0; i < rows; ++i) {
+        u32 rows = atomic_load(&(*table).count);
+        for (u32 i = 0; i < rows; ++i) {
             HotTrampoline *row = &(*table).rows[i];
             atomic_store(&(*row).fallback_ptr, nullptr);
         }
@@ -649,7 +649,7 @@ resolve:
 }
 
 /** Advances retirement and handles initial load, pending snapshot, or generation reload. */
-HotResult Hot_poll(HotModule *hot, uint32_t *loaded_count) {
+HotResult Hot_poll(HotModule *hot, u32 *loaded_count) {
     if (loaded_count)
         (*loaded_count) = 0;   // always define the out-count, even on rejection
     if (!hot)
@@ -664,7 +664,7 @@ HotResult Hot_poll(HotModule *hot, uint32_t *loaded_count) {
                  "manifest not mounted or unknown library '%s'", (*hot).library);
         return HOT_ERROR_FILE_NOT_FOUND;
     }
-    uint64_t stamp = MANIFEST_GENERATION((*hot).library);
+    u64 stamp = MANIFEST_GENERATION((*hot).library);
 
     // Complete an in-flight live swap once the off-thread snapshot landed.
     // The phase word is the whole handshake: REQUESTED waits, CAPTURED swaps,
@@ -713,13 +713,13 @@ void Hot_shutdownModule(HotModule *hot, const char *module_name) {
 }
 
 /** Calls the named loaded module's state-save export into the caller's buffer. */
-bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, size_t cap, size_t *outLen) {
+bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, bytes cap, bytes *outLen) {
     if (!hot || !module_name || !buf || !outLen)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
-    typedef bool (*SaveFn)(void *, size_t, size_t *);
+    typedef bool (*SaveFn)(void *, bytes, bytes *);
     SaveFn save = (SaveFn) dlsym((*mod).handle, "Hot_save");
     if (!save)
         return false;
@@ -727,13 +727,13 @@ bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, size_t c
 }
 
 /** Calls the named loaded module's state-restore export with the supplied bytes. */
-bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf, size_t len) {
+bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf, bytes len) {
     if (!hot || !module_name || !buf)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
-    typedef bool (*RestoreFn)(const void *, size_t);
+    typedef bool (*RestoreFn)(const void *, bytes);
     RestoreFn restore = (RestoreFn) dlsym((*mod).handle, "Hot_restore");
     if (!restore)
         return false;
@@ -742,13 +742,13 @@ bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf,
 
 /** Calls the named loaded module's migration export into the caller's destination. */
 bool Hot_migrateModule(HotModule *hot, const char *module_name, const char *oldVersion,
-                        const void *oldBuf, size_t oldLen, void *newBuf, size_t newCap, size_t *outLen) {
+                        const void *oldBuf, bytes oldLen, void *newBuf, bytes newCap, bytes *outLen) {
     if (!hot || !module_name || !oldVersion || !oldBuf || !newBuf || !outLen)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
-    typedef bool (*MigrateFn)(const char *, const void *, size_t, void *, size_t, size_t *);
+    typedef bool (*MigrateFn)(const char *, const void *, bytes, void *, bytes, bytes *);
     MigrateFn migrate = (MigrateFn) dlsym((*mod).handle, "Hot_migrate");
     if (!migrate)
         return false;
@@ -772,7 +772,7 @@ HotFn Hot_getSymbol(HotModule *hot, const char *name) {
 
 ;;GETTER
 /** Returns the last successfully committed manifest generation. */
-uint64_t Hot_getGeneration(const HotModule *hot) {
+u64 Hot_getGeneration(const HotModule *hot) {
     return hot ? (*hot).generation : 0;
 }
 

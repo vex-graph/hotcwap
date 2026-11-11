@@ -28,19 +28,19 @@ typedef struct HotTrampoline {
 
 typedef struct HotTrampolineTable {
     HotTrampoline *rows;                     // cold-growable symbol backing
-    uint32_t capacity;                       // allocated rows
-    _Atomic uint32_t count;                  // used rows (cross-thread readers)
-    uint64_t refusals;                       // allocation/extent refusals this epoch
+    u32 capacity;                       // allocated rows
+    _Atomic u32 count;                  // used rows (cross-thread readers)
+    u64 refusals;                       // allocation/extent refusals this epoch
 } HotTrampolineTable;
 
 HotTrampolineTable HotTrampolineTable_0(void);
 #define HotTrampolineTable() HotTrampolineTable_0()
 #define HotTrampolineTable_zero() HotTrampolineTable_0()
-bool HotTrampolineTable_reserve(HotTrampolineTable *self, uint32_t capacity);
+bool HotTrampolineTable_reserve(HotTrampolineTable *self, u32 capacity);
 void HotTrampolineTable_free(HotTrampolineTable *self);
-uint64_t HotTrampolineTable_exhaustionCount(const HotTrampolineTable *self);
-bool HotTrampolineTable_toString(const HotTrampolineTable *self, char *dest, size_t cap, bool *outTruncated);
-bool HotTrampolineTable_toStringStruct(const HotTrampolineTable *self, char *dest, size_t cap, bool *outTruncated);
+u64 HotTrampolineTable_exhaustionCount(const HotTrampolineTable *self);
+bool HotTrampolineTable_toString(const HotTrampolineTable *self, char *dest, bytes cap, bool *outTruncated);
+bool HotTrampolineTable_toStringStruct(const HotTrampolineTable *self, char *dest, bytes cap, bool *outTruncated);
 
 // Register a row for a function. Returns the row index.
 int HotTrampolineTable_register(HotTrampolineTable *self, const char *name);

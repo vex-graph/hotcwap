@@ -64,8 +64,8 @@
  * STRUCT FIELDS (Mirroring hot/manifest.h — exactly this file's class):
  * ----------------------------------------------------------------------------
  *   char  *buf;    // caller-owned destination buffer
- *   size_t cap;    // capacity of buf
- *   size_t len;    // current path length, excluding the trailing NUL
+ *   bytes cap;    // capacity of buf
+ *   bytes len;    // current path length, excluding the trailing NUL
  *
  * PRIVATE HELPERS (file-local pure-data only, each with full fields):
  * ----------------------------------------------------------------------------
@@ -76,9 +76,9 @@
  *   static char   g_org[HOT_MANIFEST_MAX_NAME];     // catalog/org
  *   static ManifestLibrary g_libraries[HOT_MANIFEST_MAX_LIBRARIES]; // catalog rows
  *        char name[HOT_MANIFEST_MAX_NAME];                 // library key
- *        uint32_t sectionCount;                            // declared stems
+ *        u32 sectionCount;                            // declared stems
  *        char sections[HOT_MANIFEST_MAX_SECTIONS][HOT_MANIFEST_MAX_NAME];
- *   static uint32_t g_libraryCount;   // catalog rows in use
+ *   static u32 g_libraryCount;   // catalog rows in use
  *   static JsonIn   { const char *p; const char *end; }    // bounded cursor
  *
  * FUNCTION REGISTRY:
@@ -164,7 +164,7 @@
 
 typedef struct ManifestLibrary {
     char name[HOT_MANIFEST_MAX_NAME];
-    uint32_t sectionCount;
+    u32 sectionCount;
     char sections[HOT_MANIFEST_MAX_SECTIONS][HOT_MANIFEST_MAX_NAME];
 } ManifestLibrary;
 
@@ -182,16 +182,16 @@ static char g_name[HOT_MANIFEST_MAX_NAME];
 static char g_version[HOT_MANIFEST_MAX_NAME];
 static char g_org[HOT_MANIFEST_MAX_NAME];
 static ManifestLibrary g_libraries[HOT_MANIFEST_MAX_LIBRARIES];
-static uint32_t g_libraryCount = 0;
+static u32 g_libraryCount = 0;
 static char g_segments[MANIFEST_MAX_SEGMENTS][HOT_MANIFEST_MAX_NAME];
-static uint32_t g_segmentCount = 0;
+static u32 g_segmentCount = 0;
 
 // --- private helpers ---------------------------------------------------------
 
 static bool valid_name(const char *name) {
     if (name == nullptr || *name == '\0')
         return false;
-    size_t n = strlen(name);
+    bytes n = strlen(name);
     if (n >= HOT_MANIFEST_MAX_NAME)
         return false;
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
@@ -202,7 +202,7 @@ static bool valid_name(const char *name) {
     // directory ("~v"), so it is admitted.
     if (strcmp(name, "~") == 0)
         return false;
-    for (size_t i = 0; i < n; i++) {
+    for (bytes i = 0; i < n; i++) {
         unsigned char c = (unsigned char) name[i];
         if (!(isalnum(c) || c == '-' || c == '_' || c == '.' || c == ' ' || c == '~'))
             return false;
@@ -226,10 +226,10 @@ static bool file_exists(const char *path) {
     return stat(path, &st) == 0 && S_ISREG((unsigned int) st.st_mode);
 }
 
-// Extract the first double-quoted string value for a JSON key, tolerant of
+// Extract the first d64-quoted string value for a JSON key, tolerant of
 // whitespace around the colon. Bounded; the ownership guard only.
-static bool catalog_field(const char *buf, const char *key, char *out, size_t cap) {
-    size_t klen = strlen(key);
+static bool catalog_field(const char *buf, const char *key, char *out, bytes cap) {
+    bytes klen = strlen(key);
     const char *p = buf;
     while ((p = strchr(p, '"')) != nullptr) {
         if (strncmp(p + 1, key, klen) == 0 && p[1 + klen] == '"') {
@@ -242,7 +242,7 @@ static bool catalog_field(const char *buf, const char *key, char *out, size_t ca
             if (*q != '"')
                 return false;
             q++;
-            size_t n = 0;
+            bytes n = 0;
             while (*q != '\0' && *q != '"' && n + 1 < cap)
                 out[n++] = *q++;
             out[n] = '\0';
@@ -278,7 +278,7 @@ static bool manifest_root_guard(const char *root) {
     if (f == nullptr)
         return false;
     char buf[MANIFEST_JSON_CAP];
-    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    bytes n = fread(buf, 1, sizeof(buf) - 1, f);
     fclose(f);
     buf[n] = '\0';
 
@@ -293,25 +293,25 @@ static bool manifest_root_guard(const char *root) {
 
 // Read a base-10 generation stamp. Returns 0 when the file is missing or
 // unparsable (a fresh library is generation 0 → first seed writes 1).
-static uint64_t generation_read(const char *path) {
+static u64 generation_read(const char *path) {
     if (path == nullptr || *path == '\0')
         return 0;
     FILE *f = fopen(path, "rb");
     if (!f)
         return 0;
     char buf[32];
-    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    bytes n = fread(buf, 1, sizeof(buf) - 1, f);
     fclose(f);
-    uint64_t v = 0;
-    for (size_t i = 0; i < n && isdigit((unsigned char) buf[i]); i++)
-        v = v * 10 + (uint64_t) (buf[i] - '0');
+    u64 v = 0;
+    for (bytes i = 0; i < n && isdigit((unsigned char) buf[i]); i++)
+        v = v * 10 + (u64) (buf[i] - '0');
     return v;
 }
 
 // Write a base-10 generation stamp via temp-file + rename (atomic enough for
 // the loader's read-one-integer contract — a torn read degrades to a stale
 // generation, which self-heals on the next poll).
-static bool generation_write(const char *path, uint64_t value) {
+static bool generation_write(const char *path, u64 value) {
     if (path == nullptr || *path == '\0')
         return false;
     char tmp[MANIFEST_BUF_CAP];
@@ -352,10 +352,10 @@ static bool mkdir_p(const char *path) {
         return false;
     char tmp[MANIFEST_BUF_CAP];
     snprintf(tmp, sizeof(tmp), "%s", path);
-    size_t len = strlen(tmp);
+    bytes len = strlen(tmp);
     while (len > 0 && (tmp[len - 1] == '/' || tmp[len - 1] == '\\'))
         tmp[--len] = '\0';
-    size_t i = 1;
+    bytes i = 1;
     for (; tmp[i] != '\0'; i++) {
         if (tmp[i] == '/' || tmp[i] == '\\') {
             tmp[i] = '\0';
@@ -367,7 +367,7 @@ static bool mkdir_p(const char *path) {
     return dir_mkdir(tmp);
 }
 
-static bool read_file(const char *path, char *buf, size_t cap, size_t *lenOut) {
+static bool read_file(const char *path, char *buf, bytes cap, bytes *lenOut) {
     FILE *f = fopen(path, "rb");
     if (!f)
         return false;
@@ -376,13 +376,13 @@ static bool read_file(const char *path, char *buf, size_t cap, size_t *lenOut) {
         ok = false;
     } else {
         long sz = ftell(f);
-        if (sz < 0 || (size_t) sz > cap - 1) {
+        if (sz < 0 || (bytes) sz > cap - 1) {
             ok = false;
         } else if (fseek(f, 0, SEEK_SET) != 0) {
             ok = false;
         } else {
-            size_t n = fread(buf, 1, (size_t) sz, f);
-            if (n != (size_t) sz)
+            bytes n = fread(buf, 1, (bytes) sz, f);
+            if (n != (bytes) sz)
                 ok = false;
             else {
                 buf[n] = '\0';
@@ -395,7 +395,7 @@ static bool read_file(const char *path, char *buf, size_t cap, size_t *lenOut) {
     return ok;
 }
 
-static bool resolve_base(char *out, size_t cap, const char *root) {
+static bool resolve_base(char *out, bytes cap, const char *root) {
     if (!root || *root == '\0')
         return false;
 
@@ -460,8 +460,8 @@ static bool copy_file(const char *src, const char *dst) {
         fclose(in);
         return false;
     }
-    uint8_t buf[4096];
-    size_t n = 0;
+    u8 buf[4096];
+    bytes n = 0;
     bool ok = true;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
@@ -556,10 +556,10 @@ static void remove_ladder_dir(const char *dir) {
 
 // Dylib stem of a payload entry name: "io.dylib"→"io", "foo.dll"→"foo",
 // "libbar.so"→"bar", a bare folder name stays as-is.
-static bool stem_of(const char *file, char *out, size_t cap) {
+static bool stem_of(const char *file, char *out, bytes cap) {
     if (file == nullptr || *file == '\0' || cap == 0)
         return false;
-    size_t n = strlen(file);
+    bytes n = strlen(file);
     if (n >= HOT_MANIFEST_MAX_NAME)
         return false;
     char buf[HOT_MANIFEST_MAX_NAME];
@@ -583,14 +583,14 @@ static bool stem_of(const char *file, char *out, size_t cap) {
 }
 
 static bool library_declares(const ManifestLibrary *lib, const char *stem) {
-    for (uint32_t i = 0; i < (*lib).sectionCount; i++)
+    for (u32 i = 0; i < (*lib).sectionCount; i++)
         if (strcmp((*lib).sections[i], stem) == 0)
             return true;
     return false;
 }
 
 static ManifestLibrary *catalog_lookup(const char *name) {
-    for (uint32_t i = 0; i < g_libraryCount; i++)
+    for (u32 i = 0; i < g_libraryCount; i++)
         if (strcmp(g_libraries[i].name, name) == 0)
             return &g_libraries[i];
     return nullptr;
@@ -639,11 +639,11 @@ static bool json_peek(JsonIn *self, char *c) {
     return true;
 }
 
-static bool json_string(JsonIn *self, char *out, size_t cap) {
+static bool json_string(JsonIn *self, char *out, bytes cap) {
     if (!json_ws(self) || *(*self).p != '"')
         return false;
     (*self).p++;
-    size_t n = 0;
+    bytes n = 0;
     while ((*self).p < (*self).end && *(*self).p != '"') {
         char c = *(*self).p;
         if (c == '\\') {
@@ -822,7 +822,7 @@ static bool catalog_write_json(void) {
     if (!ManifestPath_manifestJson(path, sizeof(path)))
         return false;
     char json[MANIFEST_JSON_CAP];
-    size_t used = 0;
+    bytes used = 0;
     int n;
 
     n = snprintf(json, sizeof(json),
@@ -832,41 +832,41 @@ static bool catalog_write_json(void) {
                  "  \"org\": \"%s\",\n"
                  "  \"libraries\": {\n",
                  g_name, g_version, g_org);
-    if (n < 0 || (size_t) n >= sizeof(json))
+    if (n < 0 || (bytes) n >= sizeof(json))
         return false;
-    used = (size_t) n;
+    used = (bytes) n;
 
-    for (uint32_t i = 0; i < g_libraryCount; i++) {
+    for (u32 i = 0; i < g_libraryCount; i++) {
         ManifestLibrary *lib = &g_libraries[i];
         n = snprintf(json + used, sizeof(json) - used,
                      "    \"%s\": [", (*lib).name);
-        if (n < 0 || (size_t) n >= sizeof(json) - used)
+        if (n < 0 || (bytes) n >= sizeof(json) - used)
             return false;
-        used += (size_t) n;
-        for (uint32_t k = 0; k < (*lib).sectionCount; k++) {
+        used += (bytes) n;
+        for (u32 k = 0; k < (*lib).sectionCount; k++) {
             const char *sep = k == 0 ? "\"" : ", \"";
             n = snprintf(json + used, sizeof(json) - used,
                          "%s%s\"", sep, (*lib).sections[k]);
-            if (n < 0 || (size_t) n >= sizeof(json) - used)
+            if (n < 0 || (bytes) n >= sizeof(json) - used)
                 return false;
-            used += (size_t) n;
+            used += (bytes) n;
         }
         n = snprintf(json + used, sizeof(json) - used, "]%s", i + 1 < g_libraryCount ? ",\n" : "\n");
-        if (n < 0 || (size_t) n >= sizeof(json) - used)
+        if (n < 0 || (bytes) n >= sizeof(json) - used)
             return false;
-        used += (size_t) n;
+        used += (bytes) n;
     }
     n = snprintf(json + used, sizeof(json) - used, "  }\n}\n");
-    if (n < 0 || (size_t) n >= sizeof(json) - used)
+    if (n < 0 || (bytes) n >= sizeof(json) - used)
         return false;
-    used += (size_t) n;
+    used += (bytes) n;
 
     char tmp[MANIFEST_BUF_CAP];
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     FILE *f = fopen(tmp, "wb");
     if (!f)
         return false;
-    size_t wr = fwrite(json, 1, used, f);
+    bytes wr = fwrite(json, 1, used, f);
     bool ok = wr == used;
     if (fclose(f) != 0)
         ok = false;
@@ -903,7 +903,7 @@ static bool catalog_load(void) {
     if (!file_exists(path))
         return catalog_seed();
     char json[MANIFEST_JSON_CAP];
-    size_t len = 0;
+    bytes len = 0;
     if (!read_file(path, json, sizeof(json), &len))
         return false;
     g_libraryCount = 0;
@@ -933,7 +933,7 @@ static bool stage_has_content(const char *dir) {
 // --- constructors ------------------------------------------------------------
 
 /** Initializes a caller-buffer path builder with zero current length. */
-ManifestPath ManifestPath_0(char *dest, size_t cap) {
+ManifestPath ManifestPath_0(char *dest, bytes cap) {
     ManifestPath self;
     self.buf = dest;
     self.cap = cap;
@@ -949,7 +949,7 @@ bool Manifest_init(const char *first, ...) {
         return false;
 
     char segments[MANIFEST_MAX_SEGMENTS][HOT_MANIFEST_MAX_NAME];
-    uint32_t segCount = 0;
+    u32 segCount = 0;
 
     uintptr_t val = (uintptr_t) first;
     if (val == 0)
@@ -986,7 +986,7 @@ bool Manifest_init(const char *first, ...) {
     if (!ManifestPath_begin(&path, segments[0]))
         return false;
 
-    for (uint32_t i = 1; i < segCount; i++) {
+    for (u32 i = 1; i < segCount; i++) {
         if (!ManifestPath_push(&path, segments[i], false))
             return false;
     }
@@ -999,7 +999,7 @@ bool Manifest_init(const char *first, ...) {
     snprintf(g_version, sizeof(g_version), "%s", MANIFEST_VERSION_DEFAULT);
 
     g_segmentCount = segCount;
-    for (uint32_t i = 0; i < segCount; i++)
+    for (u32 i = 0; i < segCount; i++)
         snprintf(g_segments[i], sizeof(g_segments[i]), "%s", segments[i]);
 
     // Shared destructive-target guard (the SAME rule as UNINSTALL): never own a
@@ -1018,7 +1018,7 @@ bool Manifest_init(const char *first, ...) {
     path = ManifestPath_0(g_root, sizeof(g_root));
     if (!ManifestPath_begin(&path, segments[0]))
         return false;
-    for (uint32_t i = 1; i < segCount; i++) {
+    for (u32 i = 1; i < segCount; i++) {
         if (!ManifestPath_push(&path, segments[i], true))
             return false;
     }
@@ -1046,7 +1046,7 @@ bool Manifest_uninstall(const char *first, ...) {
     }
 
     char segments[MANIFEST_MAX_SEGMENTS][HOT_MANIFEST_MAX_NAME];
-    uint32_t segCount = 0;
+    u32 segCount = 0;
 
     uintptr_t val = (uintptr_t) first;
     if (val == 0)
@@ -1077,7 +1077,7 @@ bool Manifest_uninstall(const char *first, ...) {
         return false;
     }
 
-    for (uint32_t i = 0; i < segCount; i++) {
+    for (u32 i = 0; i < segCount; i++) {
         if (strcmp(segments[i], g_segments[i]) != 0) {
             fprintf(stderr, "hot: UNINSTALL refused — segment '%s' does not match manifest '%s'\n",
                     segments[i], g_segments[i]);
@@ -1165,10 +1165,10 @@ bool MANIFEST_ENSURE(void) {
         return false;
     char path[MANIFEST_BUF_CAP];
     static const char *slots[] = SLOT_NAMES;
-    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); i++) {
+    for (bytes i = 0; i < sizeof(slots) / sizeof(slots[0]); i++) {
         if (!ManifestPath_ladderDir((ManifestLadder) i, path, sizeof(path), true))
             return false;
-        for (uint32_t j = 0; j < g_libraryCount; j++)
+        for (u32 j = 0; j < g_libraryCount; j++)
             if (!ManifestPath_libraryDir((ManifestLadder) i,
                                          g_libraries[j].name, path,
                                          sizeof(path), true))
@@ -1189,7 +1189,7 @@ bool MANIFEST_ENSURE(void) {
  * authority; this file is the human-readable "what changed in this slot".
  */
 static bool slot_readme_append(ManifestLadder slot, const char *library,
-                               uint64_t generation, const char *phase) {
+                               u64 generation, const char *phase) {
     char path[MANIFEST_BUF_CAP];
     if (!ManifestPath_slotReadme(slot, path, sizeof(path)))
         return false;
@@ -1384,9 +1384,9 @@ bool MANIFEST_PROMOTE_LIBRARY(const char *library) {
         !ManifestPath_generationFile(library, stamp, sizeof(stamp)))
         return false;
     int n = snprintf(backup, sizeof(backup), "%s.cold-backup", previous);
-    if (n < 0 || (size_t) n >= sizeof(backup) || dir_exists(backup) || !stage_has_content(next))
+    if (n < 0 || (bytes) n >= sizeof(backup) || dir_exists(backup) || !stage_has_content(next))
         return false;
-    uint64_t generation = generation_read(stamp);
+    u64 generation = generation_read(stamp);
     if (generation == UINT64_MAX)
         return false;
     bool hadPrevious = dir_exists(previous);
@@ -1426,14 +1426,14 @@ bool MANIFEST_REQUIRES_RECOVERY(void) {
     return g_recoveryRequired;
 }
 
-uint32_t MANIFEST_SECTION_COUNT(const char *library) {
+u32 MANIFEST_SECTION_COUNT(const char *library) {
     if (!g_mounted || !valid_name(library))
         return 0;
     ManifestLibrary *lib = catalog_lookup(library);
     return lib == nullptr ? 0 : (*lib).sectionCount;
 }
 
-bool MANIFEST_REVERT_LIBRARY(const char *library, uint64_t generation) {
+bool MANIFEST_REVERT_LIBRARY(const char *library, u64 generation) {
     char next[MANIFEST_BUF_CAP], current[MANIFEST_BUF_CAP], previous[MANIFEST_BUF_CAP], stamp[MANIFEST_BUF_CAP];
     if (!g_mounted || !valid_name(library) || catalog_lookup(library) == nullptr ||
         !ManifestPath_libraryDir(MANIFEST_LADDER_NEW, library, next, sizeof(next), false) ||
@@ -1466,7 +1466,7 @@ bool MANIFEST_PROMOTE(void) {
     char prevDir[MANIFEST_BUF_CAP];
     char curDir[MANIFEST_BUF_CAP];
 
-    for (uint32_t i = 0; i < g_libraryCount; i++) {
+    for (u32 i = 0; i < g_libraryCount; i++) {
         const char *name = g_libraries[i].name;
         if (!ManifestPath_libraryDir(MANIFEST_LADDER_NEW, name, newDir,
                                      sizeof(newDir), false))
@@ -1528,7 +1528,7 @@ bool MANIFEST_IS_FIRST_RUN(void) {
 }
 
 /** Returns a mounted library's generation stamp, or zero when unavailable. */
-uint64_t MANIFEST_GENERATION(const char *library) {
+u64 MANIFEST_GENERATION(const char *library) {
     if (!g_mounted || !valid_name(library))
         return 0;
     char genFile[MANIFEST_BUF_CAP];
@@ -1555,11 +1555,11 @@ bool ManifestPath_begin(ManifestPath *self, const char *root) {
 bool ManifestPath_push(ManifestPath *self, const char *segment, bool create) {
     if (self == nullptr || segment == nullptr || (*self).buf == nullptr)
         return false;
-    size_t seg_len = strlen(segment);
+    bytes seg_len = strlen(segment);
     // A root that is already "/" must not get a second separator, or every
     // path under it starts "//" (MANIFEST("/", ...) is a legal mount).
-    size_t sep = ((*self).len == 1 && (*self).buf[0] == '/') ? 0u : 1u;
-    size_t need = (*self).len + sep + seg_len + 1;
+    bytes sep = ((*self).len == 1 && (*self).buf[0] == '/') ? 0u : 1u;
+    bytes need = (*self).len + sep + seg_len + 1;
     if (need > (*self).cap)
         return false;
     if (sep)
@@ -1573,7 +1573,7 @@ bool ManifestPath_push(ManifestPath *self, const char *segment, bool create) {
 }
 
 /** Builds the selected mounted ladder directory into the caller's buffer. */
-bool ManifestPath_ladderDir(ManifestLadder slot, char *dest, size_t cap, bool create) {
+bool ManifestPath_ladderDir(ManifestLadder slot, char *dest, bytes cap, bool create) {
     if (dest == nullptr || cap == 0)
         return false;
     static const char *slot_names[] = SLOT_NAMES;
@@ -1581,7 +1581,7 @@ bool ManifestPath_ladderDir(ManifestLadder slot, char *dest, size_t cap, bool cr
         return false;
     if (!g_mounted)
         return false;
-    size_t root_len = strlen(g_root);
+    bytes root_len = strlen(g_root);
     if (root_len + 1 + 3 + 1 + strlen(slot_names[slot]) + 1 > cap)
         return false;
     memcpy(dest, g_root, root_len);
@@ -1596,7 +1596,7 @@ bool ManifestPath_ladderDir(ManifestLadder slot, char *dest, size_t cap, bool cr
 }
 
 /** Builds a library directory under the selected ladder slot. */
-bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *dest, size_t cap, bool create) {
+bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *dest, bytes cap, bool create) {
     if (dest == nullptr || cap == 0)
         return false;
     if (!g_mounted)
@@ -1606,7 +1606,7 @@ bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *des
     char slotDir[MANIFEST_BUF_CAP];
     if (!ManifestPath_ladderDir(slot, slotDir, sizeof(slotDir), create))
         return false;
-    size_t slot_len = strlen(slotDir);
+    bytes slot_len = strlen(slotDir);
     if (slot_len + 1 + strlen(MANIFEST_IMAGES) + 1 + strlen(library) + 1 > cap)
         return false;
     memcpy(dest, slotDir, slot_len);
@@ -1621,7 +1621,7 @@ bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *des
 }
 
 /** Builds the generation-stamp file path for a mounted library. */
-bool ManifestPath_generationFile(const char *library, char *dest, size_t cap) {
+bool ManifestPath_generationFile(const char *library, char *dest, bytes cap) {
     if (dest == nullptr || cap == 0)
         return false;
     if (!g_mounted)
@@ -1635,7 +1635,7 @@ bool ManifestPath_generationFile(const char *library, char *dest, size_t cap) {
     char slotDir[MANIFEST_BUF_CAP];
     if (!ManifestPath_ladderDir(MANIFEST_LADDER_CURRENT, slotDir, sizeof(slotDir), false))
         return false;
-    size_t n = strlen(slotDir) + 1 + strlen(MANIFEST_IMAGES) + 1 + strlen(library) +
+    bytes n = strlen(slotDir) + 1 + strlen(MANIFEST_IMAGES) + 1 + strlen(library) +
                strlen(MANIFEST_GENERATION_EXT) + 1;
     if (n > cap)
         return false;
@@ -1644,7 +1644,7 @@ bool ManifestPath_generationFile(const char *library, char *dest, size_t cap) {
 }
 
 /** The per-slot changelog: manifest/<slot>/readme.md (written, not required). */
-bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, size_t cap) {
+bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, bytes cap) {
     if (dest == nullptr || cap == 0)
         return false;
     if (!g_mounted)
@@ -1652,7 +1652,7 @@ bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, size_t cap) {
     char slotDir[MANIFEST_BUF_CAP];
     if (!ManifestPath_ladderDir(slot, slotDir, sizeof(slotDir), false))
         return false;
-    size_t n = strlen(slotDir) + 1 + strlen(MANIFEST_SLOT_README) + 1;
+    bytes n = strlen(slotDir) + 1 + strlen(MANIFEST_SLOT_README) + 1;
     if (n > cap)
         return false;
     snprintf(dest, cap, "%s/%s", slotDir, MANIFEST_SLOT_README);
@@ -1660,12 +1660,12 @@ bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, size_t cap) {
 }
 
 /** Builds the mounted install cache directory path. */
-bool ManifestPath_cacheDir(char *dest, size_t cap) {
+bool ManifestPath_cacheDir(char *dest, bytes cap) {
     if (dest == nullptr || cap == 0)
         return false;
     if (!g_mounted)
         return false;
-    size_t root_len = strlen(g_root);
+    bytes root_len = strlen(g_root);
     if (root_len + 1 + strlen(MANIFEST_CACHE) + 1 > cap)
         return false;
     memcpy(dest, g_root, root_len);
@@ -1678,12 +1678,12 @@ bool ManifestPath_cacheDir(char *dest, size_t cap) {
 }
 
 /** Builds the mounted install manifest JSON path. */
-bool ManifestPath_manifestJson(char *dest, size_t cap) {
+bool ManifestPath_manifestJson(char *dest, bytes cap) {
     if (dest == nullptr || cap == 0)
         return false;
     if (!g_mounted)
         return false;
-    size_t root_len = strlen(g_root);
+    bytes root_len = strlen(g_root);
     if (root_len + 1 + strlen(MANIFEST_JSON) + 1 > cap)
         return false;
     memcpy(dest, g_root, root_len);
@@ -1703,6 +1703,6 @@ const char *ManifestPath_get(const ManifestPath *self) {
 }
 
 /** Returns the builder's current path length, or zero for null self. */
-size_t ManifestPath_len(const ManifestPath *self) {
+bytes ManifestPath_len(const ManifestPath *self) {
     return self == nullptr ? 0 : (*self).len;
 }

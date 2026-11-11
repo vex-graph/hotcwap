@@ -57,10 +57,10 @@ typedef enum HotSavePhase {
 
 typedef struct HotModule {
     char library[HOT_MANIFEST_MAX_NAME];
-    uint64_t generation;
+    u64 generation;
 
     HotModuleInternal modules[HOT_MAX_MODULES];
-    uint32_t module_count;
+    u32 module_count;
 
     char last_error[256];
 
@@ -74,11 +74,11 @@ typedef struct HotModule {
     atomic_uint savePhase;            // HotSavePhase: the one handshake word
 
     HotSaveSlot saveSlots[HOT_MAX_MODULES];
-    size_t saveCount;
+    bytes saveCount;
 
     // --- cold (stop-the-world) payload admission ---
     const HotSectionDigest *coldDigests;
-    size_t coldCount;
+    bytes coldCount;
     bool recoveryRequired;
 } HotModule;
 

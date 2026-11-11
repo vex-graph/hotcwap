@@ -32,7 +32,7 @@ static int g_failures = 0;
 /** Counts occupied entries retained in the retirement ring. */
 static int parkedCount(const HotRetireRing *ring) {
     int n = 0;
-    for (size_t i = 0; i < HOT_RETIRED_MAX; i++) {
+    for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
         const HotRetiredHandle *slot = &(*ring).slots[i];
         if ((*slot).handle)
             n++;

@@ -89,7 +89,7 @@
 #  define APPLICATION_PATH ".local/share"
 #endif
 
-// The vexgraph-ecosystem-gitrepo org folder under the application-data base (default org in
+// The ecosystem org folder under the application-data base (default org in
 // MANIFEST() calls; resource roots still nest underneath it).
 #define MANIFEST_ORG "vexgraph"
 
@@ -116,15 +116,15 @@ typedef enum ManifestLadder {
 // owns a caller buffer pointer + current length, never the memory.
 typedef struct ManifestPath {
     char *buf;    // caller-owned destination buffer
-    size_t cap;   // capacity of buf
-    size_t len;   // current path length, excluding the trailing NUL
+    bytes cap;   // capacity of buf
+    bytes len;   // current path length, excluding the trailing NUL
 } ManifestPath;
 
 // Constructors:
 //   ManifestPath(dest, cap)           — bind a builder to a caller buffer.
 //   MANIFEST(root, seg1, ...)         — one-shot init + create dirs (below).
 
-ManifestPath ManifestPath_0(char *dest, size_t cap);
+ManifestPath ManifestPath_0(char *dest, bytes cap);
 
 // --- CORE FUNCTIONS ----------------------------------------------------------
 
@@ -196,17 +196,17 @@ bool MANIFEST_IS_FIRST_RUN(void);
 // Returns 0 when never mounted, the library key is invalid, or the stamp is
 // missing/unparsable (a never-installed library reads 0). The hot re-loader
 // (hot/hot.c) compares this against its last-seen generation to trigger a swap.
-uint64_t MANIFEST_GENERATION(const char *library);
+u64 MANIFEST_GENERATION(const char *library);
 
 // Cold loader admission checks the mounted catalog, never trusts placement.
 bool MANIFEST_ALLOWS(const char *library, const char *filename);
-uint32_t MANIFEST_SECTION_COUNT(const char *library);
+u32 MANIFEST_SECTION_COUNT(const char *library);
 // Transactional, one-library promotion. On detected rename/stamp failure, undo
 // completed moves; rollback failure is reported as false. Stable trusted tree,
 // external serialization; crash/power-loss recovery is not provided by this API.
 bool MANIFEST_PROMOTE_LIBRARY(const char *library);
 // Restore the immediately previous set after a failed cold code admission.
-bool MANIFEST_REVERT_LIBRARY(const char *library, uint64_t generation);
+bool MANIFEST_REVERT_LIBRARY(const char *library, u64 generation);
 bool MANIFEST_REQUIRES_RECOVERY(void);
 
 // --- PATH BUILDERS (dest-last) ----------------------------------------------
@@ -220,32 +220,32 @@ bool ManifestPath_push(ManifestPath *self, const char *segment, bool create);
 bool ManifestPath_begin(ManifestPath *self, const char *root);
 
 // Ladder slot dir <locked root>/bin/<slot>. create=true also mkdirs it.
-bool ManifestPath_ladderDir(ManifestLadder slot, char *dest, size_t cap, bool create);
+bool ManifestPath_ladderDir(ManifestLadder slot, char *dest, bytes cap, bool create);
 
 // Per-library ladder dir <locked root>/bin/<slot>/<library>. create=true
 // also mkdirs it. Returns false when the library name is invalid or the
 // manifest never mounted.
-bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *dest, size_t cap, bool create);
+bool ManifestPath_libraryDir(ManifestLadder slot, const char *library, char *dest, bytes cap, bool create);
 
 // The per-library generation stamp <locked root>/manifest/current/images/<lib>.generation
 // — a plain base-10 integer (0 when never written). The live re-loader
 // compares this against its last-seen generation to trigger a hot swap.
-bool ManifestPath_generationFile(const char *library, char *dest, size_t cap);
+bool ManifestPath_generationFile(const char *library, char *dest, bytes cap);
 
 // The per-slot changelog <locked root>/manifest/<slot>/readme.md. Written on
 // reflect/update/promote; never required for a mount or a swap.
-bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, size_t cap);
+bool ManifestPath_slotReadme(ManifestLadder slot, char *dest, bytes cap);
 
 // cache/ dir under the locked root.
-bool ManifestPath_cacheDir(char *dest, size_t cap);
+bool ManifestPath_cacheDir(char *dest, bytes cap);
 
 // The catalog file <locked root>/manifest.json (created on first save).
-bool ManifestPath_manifestJson(char *dest, size_t cap);
+bool ManifestPath_manifestJson(char *dest, bytes cap);
 
 // --- GETTERS -----------------------------------------------------------------
 
 // Null-safe accessors (the Symmetric Getter/Setter Completeness Law).
 const char *ManifestPath_get(const ManifestPath *self);
-size_t ManifestPath_len(const ManifestPath *self);
+bytes ManifestPath_len(const ManifestPath *self);
 
 #endif

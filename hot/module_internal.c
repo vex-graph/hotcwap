@@ -12,7 +12,7 @@
 
 // Find a section slot by stem, or nullptr.
 HotModuleInternal *HotModuleInternal_find(HotModule *hot, const char *name) {
-    for (uint32_t i = 0; i < (*hot).module_count; i++) {
+    for (u32 i = 0; i < (*hot).module_count; i++) {
         if (strcmp((*hot).modules[i].name, name) == 0)
             return &(*hot).modules[i];
     }
