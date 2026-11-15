@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "hot/save_slot.h"
 
 #include <dlfcn.h>
@@ -7,7 +8,6 @@
 #include <time.h>
 
 #include "hot/internal.h"
-#include "util/throw.h"
 
 // hot/save_slot.c — off-thread state capture.
 //

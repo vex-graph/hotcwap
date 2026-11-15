@@ -4,9 +4,7 @@
 // ladder, swaps on its own generation, and its absence never blocks the core
 // or the application.
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "vex.h"
 #include <stdio.h>
 #include <string.h>
 

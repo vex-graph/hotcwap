@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "hot/module.h"
 
 #include <string.h>

@@ -9,6 +9,7 @@
 //
 // Headless, deterministic, no dylibs, no manifest.
 
+#include "vex.h"
 #include <stdio.h>
 #include <string.h>
 

@@ -7,6 +7,7 @@
 //
 // This is the proof that "the app cannot change unless it matches the core".
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "app_common.h"

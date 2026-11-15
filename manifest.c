@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "manifest.h"
 #include "ledger.h"
 
@@ -11,7 +12,6 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#include "util/platform.h"
 
 #if defined(VEX_PLATFORM_WINDOWS)
 #  include <io.h>
@@ -24,8 +24,6 @@
 #  define UNLINK(a)    unlink(a)
 #endif
 
-#include "util/annotation.h"
-#include "util/throw.h"
 
 ;;DEFINITION
 /**

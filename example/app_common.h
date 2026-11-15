@@ -1,9 +1,7 @@
 #ifndef APP_COMMON_H
 #define APP_COMMON_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "vex.h"
 #include <string.h>
 
 // app_common.h — what every version of the application image shares.

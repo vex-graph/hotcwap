@@ -3,6 +3,7 @@
 // A different source file with different arithmetic: v2 says a different hello
 // and multiplies pi by pi. That is the whole visible difference after the swap.
 
+#include "vex.h"
 #include <stdio.h>
 
 // v2 was built against engine contract 2.

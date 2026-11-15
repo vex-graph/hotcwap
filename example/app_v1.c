@@ -8,6 +8,7 @@
 // name to look for, so the loader asks for exactly those. Everything the host
 // actually calls (setup/run/teardown) is published through Hot_getExports().
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "app_common.h"

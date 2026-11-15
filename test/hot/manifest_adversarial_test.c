@@ -15,10 +15,9 @@
 // Headless, dlopen-free. Scratch state lives in a mkdtemp dir under the
 // VEX_MANIFEST test seam and is removed on exit. POSIX-only.
 
+#include "vex.h"
 #include <dirent.h>
 #include <errno.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

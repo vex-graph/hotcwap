@@ -1,9 +1,7 @@
 #ifndef HOT_MANIFEST_H
 #define HOT_MANIFEST_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "vex.h"
 
 // hot/manifest.h — the MANIFEST(...) install-layout + manifest.json catalog authority.
 //
@@ -79,7 +77,6 @@
 
 // Per-platform application-install base, overridable at build time
 // (custom deployments) or by $VEX_MANIFEST at runtime (test seam).
-#include "util/platform.h"
 
 #if defined(VEX_PLATFORM_WINDOWS)
 #  define APPLICATION_PATH "%LOCALAPPDATA%"

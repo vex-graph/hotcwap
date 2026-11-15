@@ -25,11 +25,9 @@
 // state lives in a mkdtemp dir and is best-effort removed on exit. POSIX-only
 // (dlopen-based loader contract); on Windows the harness skips with exit 0.
 
-#include "lifetime/platform.h"
+#include "vex.h"
 #include <dirent.h>
 #include <errno.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

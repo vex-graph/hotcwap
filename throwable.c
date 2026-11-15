@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "throwable.h"
 #include "window/window.h"
 #include "struct/chunked_list.h"
@@ -6,7 +7,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "annotation/annotation.h"
 
 ;;DEFINITION
 /**

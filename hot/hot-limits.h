@@ -10,7 +10,6 @@
 // (module slots, save slots) are sized by a section count, which the manifest
 // catalog already caps at HOT_MANIFEST_MAX_SECTIONS.
 
-#include <stddef.h>
 
 #define HOT_MAX_MODULES     32
 #define HOT_PATH_LEN        512

@@ -1,6 +1,5 @@
+#include "vex.h"
 #include "hot/trampoline_table.h"
-#include "util/annotation.h"
-#include "util/throw.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>

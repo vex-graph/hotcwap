@@ -1,8 +1,7 @@
 #ifndef HOT_LEDGER_H
 #define HOT_LEDGER_H
 
-#include <stdbool.h>
-#include <stddef.h>
+#include "vex.h"
 
 // hot/ledger.h — the machine-scoped install ledger (R1 host).
 //

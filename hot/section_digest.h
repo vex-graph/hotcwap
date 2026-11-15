@@ -1,7 +1,7 @@
 #ifndef HOT_HOT_SECTION_DIGEST_H
 #define HOT_HOT_SECTION_DIGEST_H
 
-#include <stdint.h>
+#include "vex.h"
 
 // hot_section_digest.h — one trusted cold-payload descriptor.
 //

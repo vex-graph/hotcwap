@@ -16,11 +16,9 @@
 // Headless but real (dlopen-based loader contract). Scratch state lives in a
 // mkdtemp dir under the VEX_MANIFEST test seam. POSIX-only.
 
-#include "lifetime/platform.h"
+#include "vex.h"
 #include <dirent.h>
 #include <errno.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

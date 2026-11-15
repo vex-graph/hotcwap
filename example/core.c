@@ -11,9 +11,7 @@
 // Bumping CORE_CONTRACT_ABI is the promise "an app built for the old surface
 // will no longer be attached". That is the whole point of the gate.
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "vex.h"
 #include <stdio.h>
 #include <string.h>
 

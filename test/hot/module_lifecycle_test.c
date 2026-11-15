@@ -10,7 +10,7 @@
 // that made the join unbounded shows up as this test's timeout, not a hang in
 // CI's harness.
 
-#include <stdbool.h>
+#include "vex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

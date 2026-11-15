@@ -14,10 +14,9 @@
 // SAFE TO RUN: HOME is redirected into a mkdtemp scratch dir, so the ledger
 // file never touches the real per-user state directory. POSIX-only.
 
-#include "lifetime/platform.h"
+#include "vex.h"
 #include <dirent.h>
 #include <errno.h>
-#include <stdbool.h>
 #include "test_support.h"
 #include <stdio.h>
 #include <stdlib.h>

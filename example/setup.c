@@ -12,6 +12,7 @@
 // Run:
 //   ./setup <core-v2-dir> <app-v2-dir> <app-v3-dir> <core-v1-dir> <app-v1-dir>
 
+#include "vex.h"
 #include <signal.h>
 #include <stdio.h>
 #include <time.h>

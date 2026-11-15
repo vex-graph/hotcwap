@@ -1,3 +1,4 @@
+#include "vex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,7 +7,6 @@
 
 #include "manifest.h"
 #include "spoke/bespoke.h"
-#include "annotation/annotation.h"
 
 ;;OVERVIEW
 /**

@@ -1,10 +1,8 @@
 #ifndef HOT_HOT_MODULE_H
 #define HOT_HOT_MODULE_H
 
+#include "vex.h"
 #include <pthread.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stdint.h>
 
 #include "hot/hot-limits.h"
 #include "hot/module_internal.h"

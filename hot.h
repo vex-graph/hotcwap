@@ -1,9 +1,6 @@
 #ifndef HOT_HOT_H
 #define HOT_HOT_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
 
 // hot/hot.h — Hotloading system for vex.
 //

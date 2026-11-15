@@ -1,7 +1,7 @@
 #ifndef HOT_HOT_RETIRE_H
 #define HOT_HOT_RETIRE_H
 
-#include <stdint.h>
+#include "vex.h"
 
 // hot/hot_retire.h — Per-instance generational dlclose ring.
 //

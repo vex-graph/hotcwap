@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "hot/staged_section.h"
 
 #include <dlfcn.h>

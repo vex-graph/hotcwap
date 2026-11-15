@@ -12,8 +12,8 @@
 // A real, already-loaded system library is used with RTLD_NODELETE so dlclose
 // never unloads it (safe to close repeatedly).
 
+#include "vex.h"
 #include <dlfcn.h>
-#include <stddef.h>
 #include "test_support.h"
 #include <stdio.h>
 

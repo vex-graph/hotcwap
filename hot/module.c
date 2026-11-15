@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "hot.h"
 #include "manifest.h"
 #include "hot/trampoline_table.h"

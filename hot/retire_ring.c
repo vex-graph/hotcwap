@@ -1,9 +1,8 @@
+#include "vex.h"
 #include "hot/retire_ring.h"
 
 #include <dlfcn.h>
-#include <stddef.h>
 
-#include "util/annotation.h"
 
 ;;DEFINITION
 /**

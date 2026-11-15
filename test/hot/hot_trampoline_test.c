@@ -12,6 +12,7 @@
 //
 // Headless, deterministic, no dylibs.
 
+#include "vex.h"
 #include <stdio.h>
 #include <string.h>
 

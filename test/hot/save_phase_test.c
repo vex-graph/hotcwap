@@ -12,9 +12,9 @@
 //         -Ivex/vexspoke -Ivex/re test/hot/save_phase_test.c hot/save_slot.c \
 //         -pthread -o save_phase_test
 
+#include "vex.h"
 #include <dlfcn.h>
 #include <pthread.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>

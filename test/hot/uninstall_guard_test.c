@@ -21,11 +21,9 @@
 // SAFE TO RUN: HOME and VEX_MANIFEST are redirected into mkdtemp scratch dirs,
 // so no real user or system directory is ever a candidate. POSIX-only.
 
-#include "lifetime/platform.h"
+#include "vex.h"
 #include <dirent.h>
 #include <errno.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
