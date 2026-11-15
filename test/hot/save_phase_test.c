@@ -35,7 +35,7 @@ static int g_failures = 0;
 // The state blob a module hands to the loader. Exported so the loader's
 // dlsym(handle, "Hot_save") finds it on this executable's image.
 __attribute__((visibility("default")))
-bool Hot_save(void *buf, bytes cap, bytes *out) {
+bool Hot_save(any buf, bytes cap, bytes *out) {
     static const char pattern[] = "save-phase";
     if (buf == nullptr || out == nullptr || cap < sizeof(pattern))
         return false;
@@ -65,7 +65,7 @@ static bool waitPhase(HotModule *hot, HotSavePhase want, long timeoutMs) {
 }
 
 /** A zeroed HotModule resolved against this binary's exported Hot_save. */
-static bool modulePrepare(HotModule *hot, void *image) {
+static bool modulePrepare(HotModule *hot, any image) {
     memset(hot, 0, sizeof(*hot));
     if (pthread_mutex_init(&(*hot).saveLock, nullptr) != 0)
         return false;
@@ -85,13 +85,13 @@ static bool modulePrepare(HotModule *hot, void *image) {
     return true;
 }
 
-static void moduleRelease(HotModule *hot) {
+static fn moduleRelease(HotModule *hot) {
     pthread_cond_destroy(&(*hot).saveCond);
     pthread_mutex_destroy(&(*hot).saveLock);
 }
 
-int main(void) {
-    void *image = dlopen(nullptr, RTLD_NOW);
+int main() {
+    any image = dlopen(nullptr, RTLD_NOW);
     CHECK(image != nullptr);
     if (image == nullptr) {
         printf("save_phase_test: cannot open the main image\n");

@@ -1,8 +1,7 @@
 #ifndef HOT_HOT_MODULE_INTERNAL_H
 #define HOT_HOT_MODULE_INTERNAL_H
 
-#include <stdbool.h>
-
+#include "vex.h"
 #include "hot/hot-limits.h"
 #include "manifest.h"
 
@@ -21,7 +20,7 @@
 typedef struct {
     char name[HOT_MANIFEST_MAX_NAME];  // section stem, e.g. "app"
     char path[HOT_PATH_LEN];           // the unique-path copy that was dlopen'd
-    void *handle;                      // dlopen handle
+    any handle;                      // dlopen handle
     bool loaded;                       // currently loaded
 } HotModuleInternal;
 

@@ -1,25 +1,24 @@
 #ifndef HOT_THROWABLE_H
 #define HOT_THROWABLE_H
 
-#include <stdbool.h>
-#include <stddef.h>
+#include "vex.h"
 #include "exception/exception.h"
 
 // Teardown hook invoked when FATAL_THROW terminates the process.
-typedef void (*ThrowableTeardownFn)(void);
+typedef fn (*ThrowableTeardownFn)();
 
 // Register a teardown callback (e.g. Window_destroyAll) to execute before exit.
 // Dynamically scales 0..N with zero hardcoded capacity ceiling.
-void Throwable_registerTeardown(ThrowableTeardownFn fn);
+fn Throwable_registerTeardown(ThrowableTeardownFn fn);
 
 // Unregister a previously registered teardown callback.
-void Throwable_unregisterTeardown(ThrowableTeardownFn fn);
+fn Throwable_unregisterTeardown(ThrowableTeardownFn fn);
 
 // Run all registered teardowns in LIFO order and free dynamic storage.
-void Throwable_runTeardown(void);
+fn Throwable_runTeardown();
 
 // Internal throw execution: builds Exception, prints banner, runs teardown, exits.
-_Noreturn void Throwable_throw(ExceptionCategory category,
+_Noreturn fn Throwable_throw(ExceptionCategory category,
                               const char *site,
                               const char *file,
                               int line,

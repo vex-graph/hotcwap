@@ -10,7 +10,7 @@
 // so in-flight calls into the old generation finish before dlclose().
 
 typedef struct HotRetiredHandle {
-    void *handle;          // retired dylib awaiting close (NULL = free slot)
+    any handle;          // retired dylib awaiting close (NULL = free slot)
     u32 generation;   // poll generation when retired
 } HotRetiredHandle;
 
@@ -23,12 +23,12 @@ typedef struct HotRetireRing {
 } HotRetireRing;
 
 // Park a handle in the ring, closing expired entries first.
-void HotRetireRing_retire(HotRetireRing *self, void *handle);
+fn HotRetireRing_retire(HotRetireRing *self, any handle);
 
 // Advance one poll generation, closing entries older than the grace period.
-void HotRetireRing_advance(HotRetireRing *self);
+fn HotRetireRing_advance(HotRetireRing *self);
 
 // Close and clear every parked handle (shutdown path).
-void HotRetireRing_drainAll(HotRetireRing *self);
+fn HotRetireRing_drainAll(HotRetireRing *self);
 
 #endif

@@ -1,10 +1,7 @@
 #ifndef HOT_HOT_INTERNAL_H
 #define HOT_HOT_INTERNAL_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
+#include "vex.h"
 #include "hot.h"
 #include "hot/module.h"
 #include "hot/staged_section.h"
@@ -21,8 +18,8 @@ HotModuleInternal *HotModuleInternal_find(HotModule *hot, const char *name);
 HotModuleInternal *HotModuleInternal_adopt(HotModule *hot, const char *name);
 
 // --- hot/save_slot.c — off-thread state capture ----------------------------
-void *HotSaveSlot_workerMain(void *arg);
-void HotSaveSlot_workerShutdown(HotModule *hot);
+any HotSaveSlot_workerMain(any arg);
+fn HotSaveSlot_workerShutdown(HotModule *hot);
 bool HotSaveSlot_begin(HotModule *hot);
 // The one handshake word, readable without saveLock (atomic snapshot).
 HotSavePhase HotSaveSlot_phase(const HotModule *hot);
@@ -39,7 +36,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
 bool HotStaging_mkdirs(const char *path);
 bool HotStaging_copy(const char *src, const char *dst);
 bool HotStaging_digestMatches(const char *path, const u8 expected[32]);
-u32 HotStaging_nextSerial(void);
+u32 HotStaging_nextSerial();
 const HotSectionDigest *HotStaging_coldDigest(HotModule *hot, const char *name);
 
 #endif

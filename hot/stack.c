@@ -1,10 +1,12 @@
+#include "vex.h"
 #include "hot/stack.h"
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
-#include "types.h"
+
+
+#include "lang/primitive.h"
 
 // hot/stack.c — the loading order, owned by the library.
 //
@@ -33,11 +35,11 @@ struct HotStack {
 typedef u64 (*AbiFn)();
 
 static u64 readExportAbi(HotModule *module, const char *symbol) {
-    AbiFn fn = (AbiFn) (void*) Hot_getSymbol(module, symbol);
+    const AbiFn fn = (any) Hot_getSymbol(module, symbol);
     return fn ? fn() : 0;
 }
 
-static void stackSetError(HotStack *stack, const char *text) {
+static fn stackSetError(HotStack *stack, const char *text) {
     snprintf((*stack).lastError, sizeof((*stack).lastError), "%s", text);
 }
 
@@ -56,11 +58,11 @@ HotStack *HotStack_2(const char *coreLibrary, const char *appLibrary) {
     return stack;
 }
 
-HotStack *HotStack_0() {
+HotStack *HotStack_1() {
     return HotStack_2(HOT_STACK_CORE_LIBRARY, HOT_STACK_APP_LIBRARY);
 }
 
-void HotStack_free(HotStack *stack) {
+fn HotStack_free(HotStack *stack) {
     if (!stack)
         return;
     for (u32 i = 0; i < (*stack).pluginCount; i++)

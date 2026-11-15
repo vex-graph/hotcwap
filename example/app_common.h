@@ -40,14 +40,14 @@ typedef struct AppState {
     d64   accumulated;
 } AppState;
 
-static inline void AppState_init(AppState *state) {
+static inline fn AppState_init(AppState *state) {
     (*state).magic = APP_MAGIC;
     (*state).schema = APP_SCHEMA;
     (*state).frames = 0;
     (*state).accumulated = 0.0;
 }
 
-static inline bool AppState_save(const AppState *state, void *buf, bytes cap, bytes *outLen) {
+static inline bool AppState_save(const AppState *state, any buf, bytes cap, bytes *outLen) {
     if (outLen)
         *outLen = 0;
     if (!buf || !outLen || cap < sizeof(AppState))
@@ -57,7 +57,7 @@ static inline bool AppState_save(const AppState *state, void *buf, bytes cap, by
     return true;
 }
 
-static inline bool AppState_restore(AppState *state, const void *buf, bytes len) {
+static inline bool AppState_restore(AppState *state, const_any buf, bytes len) {
     if (!buf || len != sizeof(AppState))
         return false;
     AppState incoming;
@@ -71,7 +71,7 @@ static inline bool AppState_restore(AppState *state, const void *buf, bytes len)
 // Row layout is a hard contract with hot/staged_section.c.
 typedef struct HotModuleExport {
     const char *name;
-    void *fn;
+    any fn;
 } HotModuleExport;
 
 #endif

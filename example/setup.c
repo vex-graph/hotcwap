@@ -32,25 +32,25 @@
 
 // The application's own entry points — the only types that are its policy.
 typedef f32 (*CorePulseFn)(d64);
-typedef void  (*AppSetupFn)(CorePulseFn);
-typedef void  (*AppRunFn)(d64);
-typedef void  (*AppTeardownFn)(void);
-typedef void  (*PluginFrameFn)(d64);
+typedef fn  (*AppSetupFn)(CorePulseFn);
+typedef fn  (*AppRunFn)(d64);
+typedef fn  (*AppTeardownFn)();
+typedef fn  (*PluginFrameFn)(d64);
 
 static volatile sig_atomic_t s_stop = 0;
 
-static void onSignal(int sig) {
-    (void) sig;
+static fn onSignal(int sig) {
+    (discard) sig;
     s_stop = 1;
 }
 
-static d64 hostNow(void) {
+static d64 hostNow() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (d64) ts.tv_sec + (d64) ts.tv_nsec / 1000000000.0;
 }
 
-static void sleepMs(long ms) {
+static fn sleepMs(long ms) {
     struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
     nanosleep(&ts, nullptr);
 }
@@ -106,13 +106,13 @@ int main(int argc, char **argv) {
         printf("[setup] plugin loaded\n");
 
     // Application-visible symbols. Re-fetched whenever the matching layer moves.
-    CorePulseFn corePulse = (void*) Hot_getSymbol(Hot_getCore(stack), "Core_pulse");
-    AppRunFn appRun = (void*) Hot_getSymbol(Hot_getApplication(stack), "run");
-    PluginFrameFn pluginFrame = (void*) Hot_getSymbol(Hot_getPlugin(stack, 0), "Plugin_frame");
+    CorePulseFn corePulse = (any) Hot_getSymbol(Hot_getCore(stack), "Core_pulse");
+    AppRunFn appRun = (any) Hot_getSymbol(Hot_getApplication(stack), "run");
+    PluginFrameFn pluginFrame = (any) Hot_getSymbol(Hot_getPlugin(stack, 0), "Plugin_frame");
     bool appRunning = Hot_isApplicationCompatible(stack);
 
     if (appRunning && corePulse) {
-        AppSetupFn setup = (AppSetupFn) (void*) Hot_getSymbol(Hot_getApplication(stack), "setup");
+        AppSetupFn setup = (AppSetupFn) (any) Hot_getSymbol(Hot_getApplication(stack), "setup");
         if (setup)
             setup(corePulse);
     }
@@ -152,8 +152,8 @@ int main(int argc, char **argv) {
         if (changed.core || changed.app) {
             // Re-bind borrowed pointers. This is the only thing the
             // application must own: it knows its own contract with the engine.
-            corePulse = (CorePulseFn) (void*) Hot_getSymbol(Hot_getCore(stack), "Core_pulse");
-            appRun = (AppRunFn) (void*) Hot_getSymbol(Hot_getApplication(stack), "run");
+            corePulse = (CorePulseFn) (any) Hot_getSymbol(Hot_getCore(stack), "Core_pulse");
+            appRun = (AppRunFn) (any) Hot_getSymbol(Hot_getApplication(stack), "run");
             appRunning = Hot_isApplicationCompatible(stack);
 
             if (changed.core)
@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
             if (!appRunning) {
                 printf("[setup] app idle: %s\n", Hot_getStackError(stack));
             } else if (corePulse) {
-                AppSetupFn setup = (AppSetupFn) (void*) Hot_getSymbol(Hot_getApplication(stack), "setup");
+                AppSetupFn setup = (AppSetupFn) (any) Hot_getSymbol(Hot_getApplication(stack), "setup");
                 if (setup) {
                     printf("[setup] app re-attached to the new core\n");
                     setup(corePulse);

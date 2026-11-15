@@ -71,7 +71,7 @@ static bool rmtree(const char *path) {
     return true;
 }
 
-int main(void) {
+int main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("ledger_test: SKIP (POSIX state-file contract)\n");
     return B_TEST_SKIP;

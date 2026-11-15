@@ -38,7 +38,7 @@
  * SLOT RECORD (public, behaviorless, owned by this ring):
  * ----------------------------------------------------------------------------
  *   HotRetiredHandle (one parked dylib):
- *     void *handle;                          // retired dylib (NULL = free slot)
+ *     any handle;                          // retired dylib (NULL = free slot)
  *     u32 generation;                   // poll generation when retired
  *
  * PRIVATE HELPERS:
@@ -77,7 +77,7 @@
 
 // CORE FUNCTIONS (PUBLIC & PRIVATE)
 /** Adds a loaded handle to the retire ring so delayed callers can finish. */
-void HotRetireRing_retire(HotRetireRing *self, void *handle) {
+fn HotRetireRing_retire(HotRetireRing *self, any handle) {
     if (!self || !handle) return;
 
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
@@ -118,7 +118,7 @@ void HotRetireRing_retire(HotRetireRing *self, void *handle) {
 }
 
 /** Advances the grace period and closes handles whose callers have quiesced. */
-void HotRetireRing_advance(HotRetireRing *self) {
+fn HotRetireRing_advance(HotRetireRing *self) {
     if (!self) return;
     (*self).generation++;
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
@@ -131,7 +131,7 @@ void HotRetireRing_advance(HotRetireRing *self) {
 }
 
 /** Closes every handle still retained by the ring. */
-void HotRetireRing_drainAll(HotRetireRing *self) {
+fn HotRetireRing_drainAll(HotRetireRing *self) {
     if (!self) return;
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
         HotRetiredHandle *slot = &(*self).slots[i];

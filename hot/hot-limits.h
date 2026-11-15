@@ -1,6 +1,8 @@
 #ifndef HOT_HOT_LIMITS_H
 #define HOT_HOT_LIMITS_H
 
+#include "vex.h"
+
 // hot/limits.h — the loader's named bounds.
 //
 // These are DEFAULTS, not ceilings (the No Hardcoding Law): the trampoline

@@ -1,8 +1,7 @@
 #ifndef HOT_HOT_STAGED_SECTION_H
 #define HOT_HOT_STAGED_SECTION_H
 
-#include <stdint.h>
-
+#include "vex.h"
 #include "hot/hot-limits.h"
 #include "hot/module_internal.h"
 
@@ -21,8 +20,8 @@
 typedef struct {
     HotModuleInternal *mod;           // resolved slot (created if new)
     char path[HOT_PATH_LEN];          // dylib path
-    void *handle;                     // dlopened, not yet adopted
-    const void *trampolines;          // Hot_getExports table
+    any handle;                     // dlopened, not yet adopted
+    const_any trampolines;          // Hot_getExports table
     u32 trampolineCount;         // entries
 } HotStagedSection;
 

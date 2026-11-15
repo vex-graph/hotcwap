@@ -45,7 +45,7 @@ static CoreState s_core = { CORE_MAGIC, CORE_SCHEMA, 0 };
 // ---------------------------------------------------------------------------
 
 f32 Core_pulse(d64 nowSeconds);
-u64 Core_calls(void);
+u64 Core_calls();
 
 f32 Core_pulse(d64 nowSeconds) {
     s_core.pulses += 1;
@@ -57,7 +57,7 @@ f32 Core_pulse(d64 nowSeconds) {
 #endif
 }
 
-u64 Core_calls(void) {
+u64 Core_calls() {
     return s_core.pulses;
 }
 
@@ -65,8 +65,8 @@ u64 Core_calls(void) {
 // CONTRACT ANNOUNCEMENT — the number the app gate compares against.
 // ---------------------------------------------------------------------------
 
-u64 Hot_contract_abi(void);
-u64 Hot_contract_abi(void) {
+u64 Hot_contract_abi();
+u64 Hot_contract_abi() {
     return CORE_CONTRACT_ABI;
 }
 
@@ -74,10 +74,10 @@ u64 Hot_contract_abi(void) {
 // STATE HANDOFF
 // ---------------------------------------------------------------------------
 
-bool Hot_save(void *buf, bytes cap, bytes *outLen);
-bool Hot_restore(const void *buf, bytes len);
+bool Hot_save(any buf, bytes cap, bytes *outLen);
+bool Hot_restore(const_any buf, bytes len);
 
-bool Hot_save(void *buf, bytes cap, bytes *outLen) {
+bool Hot_save(any buf, bytes cap, bytes *outLen) {
     if (outLen)
         *outLen = 0;
     if (!buf || !outLen || cap < sizeof(CoreState))
@@ -87,7 +87,7 @@ bool Hot_save(void *buf, bytes cap, bytes *outLen) {
     return true;
 }
 
-bool Hot_restore(const void *buf, bytes len) {
+bool Hot_restore(const_any buf, bytes len) {
     if (!buf || len != sizeof(CoreState))
         return false;
     CoreState in;
@@ -104,19 +104,19 @@ bool Hot_restore(const void *buf, bytes len) {
 
 typedef struct HotModuleExport {
     const char *name;
-    void *fn;
+    any fn;
 } HotModuleExport;
 
 static const HotModuleExport s_exports[] = {
-    { "Core_pulse",         (void*) Core_pulse },
-    { "Core_calls",         (void*) Core_calls },
-    { "Hot_contract_abi",   (void*) Hot_contract_abi },
-    { "Hot_save",           (void*) Hot_save },
-    { "Hot_restore",        (void*) Hot_restore },
+    { "Core_pulse",         (any) Core_pulse },
+    { "Core_calls",         (any) Core_calls },
+    { "Hot_contract_abi",   (any) Hot_contract_abi },
+    { "Hot_save",           (any) Hot_save },
+    { "Hot_restore",        (any) Hot_restore },
 };
 
-const void *Hot_getExports(u32 *outCount);
-const void *Hot_getExports(u32 *outCount) {
+const_any Hot_getExports(u32 *outCount);
+const_any Hot_getExports(u32 *outCount) {
     if (outCount)
         *outCount = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;

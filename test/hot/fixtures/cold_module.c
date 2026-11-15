@@ -1,8 +1,7 @@
 /* Stateless export table plus module-local state for cold transaction fixtures.
  * Candidate restore touches only candidate state; old state remains untouched. */
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
+
+#include "vex.h"
 #include <string.h>
 #ifndef VERSION
 #define VERSION 1
@@ -18,25 +17,25 @@
 #endif
 const u64 Hot_cold_abi = ABI;
 static int state;
-static int version(void) { return VERSION; }
-static int get(void) { return state; }
-static void set(int value) { state = value; }
-bool Hot_save(void *dest, bytes cap, bytes *length) {
+static int version() { return VERSION; }
+static int get() { return state; }
+static fn set(int value) { state = value; }
+bool Hot_save(any dest, bytes cap, bytes *length) {
     if (!dest || !length || cap < sizeof(state))
         return false;
     memcpy(dest, &state, sizeof(state));
     *length = sizeof(state);
     return true;
 }
-bool Hot_restore(const void *source, bytes length) {
+bool Hot_restore(const_any source, bytes length) {
     if (!RESTORE_OK || !source || length != sizeof(state))
         return false;
     memcpy(&state, source, sizeof(state));
     return true;
 }
-const void *Hot_getExports(u32 *count) {
-    static const struct { const char *name; void *fn; } exports[] = {
-        {PREFIX "_version", (void*) version}, {PREFIX "_state", (void*) get}, {PREFIX "_set", (void*) set}
+const_any Hot_getExports(u32 *count) {
+    static const struct { const char *name; any fn; } exports[] = {
+        {PREFIX "_version", (any) version}, {PREFIX "_state", (any) get}, {PREFIX "_set", (any) set}
     };
     *count = 3;
     return exports;

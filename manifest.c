@@ -101,7 +101,7 @@
  *   - MANIFEST_REVERT_LIBRARY(library, generation) : Restore prior cold set
  *   - MANIFEST_ALLOWS(library, filename)       : Catalog check at load admission
  *   - MANIFEST_SECTION_COUNT(library)          : Mounted declared section count
- *   - MANIFEST_REQUIRES_RECOVERY(void)         : Unresolved cold disk undo latch
+ *   - MANIFEST_REQUIRES_RECOVERY()         : Unresolved cold disk undo latch
  *   - MANIFEST_CLEAN(ladder, library)         : Clear specific ladder directory
  *   - MANIFEST_SECTION_LIST(lib, out, cap)    : Retrieve declared section stems
  *   - ManifestPath_append(self, segment)      : Append path component
@@ -399,7 +399,7 @@ static bool resolve_base(char *out, bytes cap, const char *root) {
     if (!root || *root == '\0')
         return false;
 
-    uintptr_t val = (uintptr_t) root;
+    pointer val = (pointer) root;
     if (val == 0)
         root = "/";
     else if (val == 1)
@@ -525,7 +525,7 @@ static bool copy_tree(const char *srcDir, const char *dstDir, int depth) {
 
 // Recursive rm — rename-based: rename dir to a hidden sibling then sweep
 // everything under it. No system(), bounded per-entry unlinks.
-static void remove_ladder_dir(const char *dir) {
+static fn remove_ladder_dir(const char *dir) {
     if (!dir_exists(dir))
         return;
     char tomb[MANIFEST_BUF_CAP];
@@ -817,7 +817,7 @@ static bool catalog_apply(JsonIn *self) {
 
 // --- catalog persistence -------------------------------------------------------
 
-static bool catalog_write_json(void) {
+static bool catalog_write_json() {
     char path[MANIFEST_BUF_CAP];
     if (!ManifestPath_manifestJson(path, sizeof(path)))
         return false;
@@ -877,13 +877,13 @@ static bool catalog_write_json(void) {
     return RENAME(tmp, path);
 }
 
-static bool catalog_save(void) {
+static bool catalog_save() {
     if (!g_mounted)
         return false;
     return catalog_write_json();
 }
 
-static bool catalog_seed(void) {
+static bool catalog_seed() {
     if (!g_mounted)
         return false;
     char path[MANIFEST_BUF_CAP];
@@ -894,7 +894,7 @@ static bool catalog_seed(void) {
     return catalog_save();
 }
 
-static bool catalog_load(void) {
+static bool catalog_load() {
     if (!g_mounted)
         return false;
     char path[MANIFEST_BUF_CAP];
@@ -951,7 +951,7 @@ bool Manifest_init(const char *first, ...) {
     char segments[MANIFEST_MAX_SEGMENTS][HOT_MANIFEST_MAX_NAME];
     u32 segCount = 0;
 
-    uintptr_t val = (uintptr_t) first;
+    pointer val = (pointer) first;
     if (val == 0)
         snprintf(segments[segCount++], HOT_MANIFEST_MAX_NAME, "%s", "/");
     else if (val == 1)
@@ -1048,7 +1048,7 @@ bool Manifest_uninstall(const char *first, ...) {
     char segments[MANIFEST_MAX_SEGMENTS][HOT_MANIFEST_MAX_NAME];
     u32 segCount = 0;
 
-    uintptr_t val = (uintptr_t) first;
+    pointer val = (pointer) first;
     if (val == 0)
         snprintf(segments[segCount++], HOT_MANIFEST_MAX_NAME, "%s", "/");
     else if (val == 1)
@@ -1155,12 +1155,12 @@ bool MANIFEST_LIBRARY(const char *first, ...) {
 // --- core functions ----------------------------------------------------------
 
 /** Returns the mounted install root, or nullptr when no manifest is mounted. */
-const char *MANIFEST_ROOT(void) {
+const char *MANIFEST_ROOT() {
     return g_mounted ? g_root : nullptr;
 }
 
 /** Ensures all ladder, library, and cache directories exist for the mount. */
-bool MANIFEST_ENSURE(void) {
+bool MANIFEST_ENSURE() {
     if (!g_mounted)
         return false;
     char path[MANIFEST_BUF_CAP];
@@ -1304,7 +1304,7 @@ bool MANIFEST_REFLECT(const char *library, const char *sourceDir) {
     fputs("vexgraph install reflection\n", f);
     fclose(f);
 
-    (void) slot_readme_append(MANIFEST_LADDER_CURRENT, library,
+    (discard) slot_readme_append(MANIFEST_LADDER_CURRENT, library,
                               generation_read(genFile), "reflected");
 
     // The install moment: record it in the machine-scoped ledger (out of tree,
@@ -1360,7 +1360,7 @@ bool MANIFEST_UPDATE(const char *library, const char *payloadDir) {
     if (!copy_tree(payloadDir, staged, 0))
         return false;
 
-    (void) slot_readme_append(MANIFEST_LADDER_NEW, library,
+    (discard) slot_readme_append(MANIFEST_LADDER_NEW, library,
                               MANIFEST_GENERATION(library) + 1u, "staged");
     return true;
 }
@@ -1405,7 +1405,7 @@ bool MANIFEST_PROMOTE_LIBRARY(const char *library) {
     if (!generation_write(stamp, generation + 1))
         goto reject;
     remove_ladder_dir(backup);
-    (void) slot_readme_append(MANIFEST_LADDER_CURRENT, library,
+    (discard) slot_readme_append(MANIFEST_LADDER_CURRENT, library,
                               generation + 1u, "promoted");
     return true;
 reject:
@@ -1422,7 +1422,7 @@ reject:
     return false;
 }
 
-bool MANIFEST_REQUIRES_RECOVERY(void) {
+bool MANIFEST_REQUIRES_RECOVERY() {
     return g_recoveryRequired;
 }
 
@@ -1458,7 +1458,7 @@ bool MANIFEST_REVERT_LIBRARY(const char *library, u64 generation) {
 }
 
 /** Slides populated staged library directories through the ladder and advances generations. */
-bool MANIFEST_PROMOTE(void) {
+bool MANIFEST_PROMOTE() {
     if (!g_mounted)
         return false;
     char newDir[MANIFEST_BUF_CAP];
@@ -1497,14 +1497,14 @@ bool MANIFEST_PROMOTE(void) {
             return false;
         if (!generation_write(genFile, generation_read(genFile) + 1))
             return false;
-        (void) slot_readme_append(MANIFEST_LADDER_CURRENT, name,
+        (discard) slot_readme_append(MANIFEST_LADDER_CURRENT, name,
                                   generation_read(genFile), "promoted");
     }
     return true;
 }
 
 /** Determines first-run status using the persistent ledger and install marker. */
-bool MANIFEST_IS_FIRST_RUN(void) {
+bool MANIFEST_IS_FIRST_RUN() {
     if (!g_mounted)
         return true; // fail-closed: no mounted manifest means never installed
 

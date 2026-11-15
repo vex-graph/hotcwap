@@ -53,6 +53,8 @@ typedef enum {
 typedef struct HotModule HotModule;
 
 // HotSectionDigest lives in its own file (Single Class Per File Law).
+
+#include "vex.h"
 #include "hot/section_digest.h"
 
 // INTENTIONAL(vex): this cold-update ABI number describes the module export
@@ -80,7 +82,7 @@ HotModule *Hot_init(const char *library);
 
 // Shutdown the hotloader: bounded-join the save worker FIRST (its cond wait
 // is capped), then close every module, drain the retire ring, free.
-void Hot_shutdown(HotModule *hot);
+fn Hot_shutdown(HotModule *hot);
 
 // Poll for updates. Call once per frame from the _main loop (_main thread
 // only). Reloads bin/current/<library> when the generation stamp moves;
@@ -94,7 +96,7 @@ HotResult Hot_poll(HotModule *hot, u32 *loaded_count);
 
 // Get a function pointer by name (trampoline table lookup, stable until the
 // next swap of its module).
-typedef void (*HotFn)(void);
+typedef fn (*HotFn)();
 HotFn Hot_getSymbol(HotModule *hot, const char *name);
 
 // Last-seen generation of bin/current/<library> (0 before any successful
@@ -114,14 +116,14 @@ const char *Hot_getLastError(HotModule *hot);
 // into the new handle after load. Modules without Hot_save / Hot_restore
 // simply skip the handoff. Returns false when the module is unknown,
 // unloaded, or the symbol is missing / buffer too small.
-void Hot_shutdownModule(HotModule *hot, const char *module_name);
-bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, bytes cap, bytes *outLen);
-bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf, bytes len);
+fn Hot_shutdownModule(HotModule *hot, const char *module_name);
+bool Hot_saveModule(HotModule *hot, const char *module_name, any buf, bytes cap, bytes *outLen);
+bool Hot_restoreModule(HotModule *hot, const char *module_name, const_any buf, bytes len);
 
 // Phase-2 migration: translate a state blob saved by oldVersion into the
 // current module's schema. Calls the module's Hot_migrate export; false
 // when the module is unknown or exports no migrator.
 bool Hot_migrateModule(HotModule *hot, const char *module_name, const char *oldVersion,
-                        const void *oldBuf, bytes oldLen, void *newBuf, bytes newCap, bytes *outLen);
+                        const_any oldBuf, bytes oldLen, any newBuf, bytes newCap, bytes *outLen);
 
 #endif

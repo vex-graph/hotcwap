@@ -156,12 +156,12 @@ bool MANIFEST_LIBRARY(const char *first, ...);
 
 // Return the locked root (<application-base>/<org>/<app>). Buffer valid until
 // the next ManifestPath call. Returns nullptr when MANIFEST() never ran.
-const char *MANIFEST_ROOT(void);
+const char *MANIFEST_ROOT();
 
 // Create the whole per-app ladder (bin/{backward,previous,current,new} plus
 // one subfolder per registered library, cache). Idempotent. Returns
 // true when every dir exists.
-bool MANIFEST_ENSURE(void);
+bool MANIFEST_ENSURE();
 
 // First-run reflection of one library: seed its section list in manifest.json
 // from the bundled payload at sourceDir, copy the payload into
@@ -186,11 +186,11 @@ bool MANIFEST_UPDATE(const char *library, const char *payloadDir);
 // live re-loader sees the move on its next poll and swaps in-process.
 // Libraries with no staged set stay pinned. Returns false if any rename fails
 // (nothing is half-applied for the failing library).
-bool MANIFEST_PROMOTE(void);
+bool MANIFEST_PROMOTE();
 
 // First-run detection: true when the tree was never installed (no
 // bin/current/<MANIFEST_MARK>). The launcher must MANIFEST_REFLECT before run.
-bool MANIFEST_IS_FIRST_RUN(void);
+bool MANIFEST_IS_FIRST_RUN();
 
 // Read one library's current generation stamp — bin/current/<lib>.generation.
 // Returns 0 when never mounted, the library key is invalid, or the stamp is
@@ -207,7 +207,7 @@ u32 MANIFEST_SECTION_COUNT(const char *library);
 bool MANIFEST_PROMOTE_LIBRARY(const char *library);
 // Restore the immediately previous set after a failed cold code admission.
 bool MANIFEST_REVERT_LIBRARY(const char *library, u64 generation);
-bool MANIFEST_REQUIRES_RECOVERY(void);
+bool MANIFEST_REQUIRES_RECOVERY();
 
 // --- PATH BUILDERS (dest-last) ----------------------------------------------
 

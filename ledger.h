@@ -28,7 +28,7 @@ typedef enum LedgerState {
 // Bind to one application identity. Reads any existing record. NULL on bad
 // args or allocation failure.
 Ledger *Ledger_open(const char *org, const char *app);
-void Ledger_free(Ledger *ledger);
+fn Ledger_free(Ledger *ledger);
 
 // Create or update the record as installed at `version` (the install moment).
 bool Ledger_recordInstall(Ledger *ledger, const char *version);

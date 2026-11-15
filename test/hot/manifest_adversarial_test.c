@@ -119,7 +119,7 @@ static bool file_matches(const char *path, const char *data) {
     return strcmp(buf, data) == 0;
 }
 
-int main(void) {
+int main() {
     char scratch[] = "/tmp/vexgraph_manifest_adv_XXXXXX";
     char *base = mkdtemp(scratch);
     if (!base) {

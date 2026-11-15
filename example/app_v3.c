@@ -14,50 +14,50 @@
 static AppState s_app;
 static CorePulseFn s_corePulse;
 
-void setup(CorePulseFn pulse) {
+fn setup(CorePulseFn pulse) {
     s_corePulse = pulse;
     if (s_app.magic != APP_MAGIC)
         AppState_init(&s_app);
     printf("[app v3] setup — THIS SHOULD NEVER RUN\n");
 }
 
-void run(d64 nowSeconds) {
-    (void) nowSeconds;
+fn run(d64 nowSeconds) {
+    (discard) nowSeconds;
     printf("[app v3] run — THIS SHOULD NEVER RUN\n");
 }
 
-void teardown(void) {
+fn teardown() {
     s_corePulse = nullptr;
 }
 
-u64 Hot_requires_core_abi(void);
+u64 Hot_requires_core_abi();
 
-u64 Hot_requires_core_abi(void) {
+u64 Hot_requires_core_abi() {
     return 99u;
 }
 
-bool Hot_save(void *buf, bytes cap, bytes *outLen);
-bool Hot_restore(const void *buf, bytes len);
+bool Hot_save(any buf, bytes cap, bytes *outLen);
+bool Hot_restore(const_any buf, bytes len);
 
-bool Hot_save(void *buf, bytes cap, bytes *outLen) {
+bool Hot_save(any buf, bytes cap, bytes *outLen) {
     return AppState_save(&s_app, buf, cap, outLen);
 }
 
-bool Hot_restore(const void *buf, bytes len) {
+bool Hot_restore(const_any buf, bytes len) {
     return AppState_restore(&s_app, buf, len);
 }
 
 static const HotModuleExport s_exports[] = {
-    { "setup",                 (void*) setup },
-    { "run",                   (void*) run },
-    { "teardown",              (void*) teardown },
-    { "Hot_requires_core_abi", (void*) Hot_requires_core_abi },
-    { "Hot_save",              (void*) Hot_save },
-    { "Hot_restore",           (void*) Hot_restore },
+    { "setup",                 (any) setup },
+    { "run",                   (any) run },
+    { "teardown",              (any) teardown },
+    { "Hot_requires_core_abi", (any) Hot_requires_core_abi },
+    { "Hot_save",              (any) Hot_save },
+    { "Hot_restore",           (any) Hot_restore },
 };
 
-const void *Hot_getExports(u32 *outCount);
-const void *Hot_getExports(u32 *outCount) {
+const_any Hot_getExports(u32 *outCount);
+const_any Hot_getExports(u32 *outCount) {
     if (outCount)
         *outCount = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;

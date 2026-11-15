@@ -1,9 +1,7 @@
 #ifndef HOT_HOT_STACK_H
 #define HOT_HOT_STACK_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
+#include "vex.h"
 #include "manifest.h"
 #include "hot.h"
 
@@ -48,7 +46,7 @@ typedef struct HotStackChanged {
 } HotStackChanged;
 
 // Default library keys: "core" and "app".
-HotStack *HotStack_0(void);
+HotStack *HotStack_0();
 // Custom library keys for the engine and application images.
 HotStack *HotStack_2(const char *coreLibrary, const char *appLibrary);
 
@@ -61,7 +59,7 @@ HotStack *HotStack_2(const char *coreLibrary, const char *appLibrary);
 )(__VA_ARGS__)
 
 // Shut down every held module (plugins, app, then core) and free the stack.
-void HotStack_free(HotStack *stack);
+fn HotStack_free(HotStack *stack);
 
 // --- the three loading concerns -------------------------------------------
 

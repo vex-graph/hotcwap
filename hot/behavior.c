@@ -56,21 +56,21 @@
  * FUNCTION REGISTRY:
  * ----------------------------------------------------------------------------
  * Public Constructors: (.h)
- *   - Hot_init_module(void)                   : Module initialization export
+ *   - Hot_init_module()                   : Module initialization export
  *
  * Private Constructors: (.c static)
  *   - (none)
  *
  * Public Core Functions: (.h)
- *   - Hot_shutdown_module(void)               : Module teardown export
+ *   - Hot_shutdown_module()               : Module teardown export
  *   - Hot_save(buf, cap, outLen)              : Serialize module state blob
  *   - Hot_restore(buf, len)                   : Rehydrate module state blob
  *   - Hot_migrate(oldVer, oldB, l, newB, c, outL) : Forward schema migration
- *   - Hot_manifest(void)                      : JSON descriptor string export
+ *   - Hot_manifest()                      : JSON descriptor string export
  *   - Hot_getExports(outCount)        : Exported trampoline table
  *   - hot_behavior_pulse(nowSeconds)          : Trigonometric pulse math
  *   - hot_behavior_bar(w, h, pulse, outH, outW) : Layout bar dimension math
- *   - hot_texture_path(void)                  : Relative texture asset path
+ *   - hot_texture_path()                  : Relative texture asset path
  *
  * Private Core Functions: (.c static)
  *   - (none)
@@ -82,7 +82,7 @@
  *   - (none)
  *
  * Public Getters: (.h)
- *   - hot_behavior_get_phase_bias(void)       : Query phase bias offset
+ *   - hot_behavior_get_phase_bias()       : Query phase bias offset
  *
  * Private Getters: (.c static)
  *   - (none)
@@ -105,19 +105,19 @@ static f32 s_glowStrength = 1.0f;
 // CONSTRUCTORS (PUBLIC & PRIVATE)
 
 /** Initializes the stateless module and reports success. */
-bool Hot_init_module(void) {
+bool Hot_init_module() {
     return true;
 }
 
 // CORE FUNCTIONS (PUBLIC & PRIVATE)
 
 /** Performs module teardown; this module currently owns no external resources. */
-void Hot_shutdown_module(void) {
+fn Hot_shutdown_module() {
     return;
 }
 
 /** Writes the current v3 state fields to the caller's buffer. */
-bool Hot_save(void *buf, bytes cap, bytes *outLen) {
+bool Hot_save(any buf, bytes cap, bytes *outLen) {
     if (!buf || !outLen)
         return false;
     if (cap < HOT_BEHAVIOR_V3_SIZE)
@@ -133,7 +133,7 @@ bool Hot_save(void *buf, bytes cap, bytes *outLen) {
 }
 
 /** Restores recognized v1/v2 state or a v3 blob with the expected schema magic. */
-bool Hot_restore(const void *buf, bytes len) {
+bool Hot_restore(const_any buf, bytes len) {
     if (!buf)
         return false;
     const u8 *b = (const u8*) buf;
@@ -162,8 +162,8 @@ bool Hot_restore(const void *buf, bytes len) {
 }
 
 /** Converts supported legacy state versions to v3, or copies a fitting unknown version. */
-bool Hot_migrate(const char *oldVersion, const void *oldBuf, bytes oldLen,
-                 void *newBuf, bytes newCap, bytes *outLen) {
+bool Hot_migrate(const char *oldVersion, const_any oldBuf, bytes oldLen,
+                 any newBuf, bytes newCap, bytes *outLen) {
     if (!oldVersion || !oldBuf || !newBuf || !outLen)
         return false;
     const u32 magic = HOT_BEHAVIOR_SCHEMA_MAGIC;
@@ -194,7 +194,7 @@ bool Hot_migrate(const char *oldVersion, const void *oldBuf, bytes oldLen,
 }
 
 /** Returns the static JSON module descriptor. */
-const char *Hot_manifest(void) {
+const char *Hot_manifest() {
     return "{\"name\": \"hot_behavior\", \"version\": \"" HOT_BEHAVIOR_VERSION "\", "
         "\"type_ids\": [{\"name\": \"BehaviorState\", \"value\": 2}], "
         "\"exports\": [\"hot_behavior_pulse\", \"hot_behavior_bar\", "
@@ -207,33 +207,33 @@ const char *Hot_manifest(void) {
 
 // LOADER ABI EXPORT — the trampoline table the manifest loader (hot/hot.c)
 // adopts on dlopen. Row layout MUST match hot.c's contract:
-//   { const char *name; void *fn; } entries[], count via Hot_getExports.
+//   { const char *name; any fn; } entries[], count via Hot_getExports.
 typedef struct HotModuleExport {
     const char *name;
-    void *fn;
+    any fn;
 } HotModuleExport;
 
 f32 hot_behavior_pulse(d64 nowSeconds);
-void hot_behavior_bar(f32 w, f32 h, f32 pulse, f32 *outBarH, f32 *outBarW);
-const char *hot_texture_path(void);
-void hot_behavior_set_phase_bias(f32 value);
-f32 hot_behavior_get_phase_bias(void);
+fn hot_behavior_bar(f32 w, f32 h, f32 pulse, f32 *outBarH, f32 *outBarW);
+const char *hot_texture_path();
+fn hot_behavior_set_phase_bias(f32 value);
+f32 hot_behavior_get_phase_bias();
 
 static const HotModuleExport s_exports[] = {
-    { "hot_behavior_pulse",    (void*) hot_behavior_pulse },
-    { "hot_behavior_bar",      (void*) hot_behavior_bar },
-    { "hot_texture_path",      (void*) hot_texture_path },
-    { "hot_behavior_set_phase_bias", (void*) hot_behavior_set_phase_bias },
-    { "hot_behavior_get_phase_bias", (void*) hot_behavior_get_phase_bias },
-    { "Hot_init_module",       (void*) Hot_init_module },
-    { "Hot_shutdown_module",   (void*) Hot_shutdown_module },
-    { "Hot_save",              (void*) Hot_save },
-    { "Hot_restore",           (void*) Hot_restore },
-    { "Hot_migrate",           (void*) Hot_migrate },
+    { "hot_behavior_pulse",    (any) hot_behavior_pulse },
+    { "hot_behavior_bar",      (any) hot_behavior_bar },
+    { "hot_texture_path",      (any) hot_texture_path },
+    { "hot_behavior_set_phase_bias", (any) hot_behavior_set_phase_bias },
+    { "hot_behavior_get_phase_bias", (any) hot_behavior_get_phase_bias },
+    { "Hot_init_module",       (any) Hot_init_module },
+    { "Hot_shutdown_module",   (any) Hot_shutdown_module },
+    { "Hot_save",              (any) Hot_save },
+    { "Hot_restore",           (any) Hot_restore },
+    { "Hot_migrate",           (any) Hot_migrate },
 };
 
 /** Returns this module's static trampoline export table and optional row count. */
-const void *Hot_getExports(u32 *outCount) {
+const_any Hot_getExports(u32 *outCount) {
     if (outCount)
         (*outCount) = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;
@@ -247,18 +247,18 @@ f32 hot_behavior_pulse(d64 nowSeconds) {
 }
 
 /** Computes bar height and pulse-scaled width into whichever outputs are supplied. */
-void hot_behavior_bar(f32 w, f32 h, f32 pulse, f32 *outBarH, f32 *outBarW) {
+fn hot_behavior_bar(f32 w, f32 h, f32 pulse, f32 *outBarH, f32 *outBarW) {
     f32 barH = h * 0.08f;
     f32 barW = w * pulse;
     if (outBarH)
         (*outBarH) = barH;
     if (outBarW)
         (*outBarW) = barW;
-    (void) w;
+    (discard) w;
 }
 
 /** Returns the asset-relative texture path used by the host. */
-const char *hot_texture_path(void) {
+const char *hot_texture_path() {
     // Portable asset-relative path: the host resolves this against its asset
     // root (never an absolute developer-machine path — those break every
     // other checkout and leak local filesystem layout).
@@ -269,7 +269,7 @@ const char *hot_texture_path(void) {
 
 ;;SETTER
 /** Replaces the module's phase offset used by pulse calculations. */
-void hot_behavior_set_phase_bias(f32 value) {
+fn hot_behavior_set_phase_bias(f32 value) {
     s_phaseBias = value;
 }
 
@@ -277,6 +277,6 @@ void hot_behavior_set_phase_bias(f32 value) {
 
 ;;GETTER
 /** Returns the module's current phase offset. */
-f32 hot_behavior_get_phase_bias(void) {
+f32 hot_behavior_get_phase_bias() {
     return s_phaseBias;
 }

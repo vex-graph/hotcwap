@@ -21,18 +21,18 @@ typedef struct PluginState {
 
 static PluginState s_plugin = { PLUGIN_MAGIC, PLUGIN_SCHEMA, 0 };
 
-void Plugin_frame(d64 nowSeconds);
-bool Hot_save(void *buf, bytes cap, bytes *outLen);
-bool Hot_restore(const void *buf, bytes len);
+fn Plugin_frame(d64 nowSeconds);
+bool Hot_save(any buf, bytes cap, bytes *outLen);
+bool Hot_restore(const_any buf, bytes len);
 
-void Plugin_frame(d64 nowSeconds) {
+fn Plugin_frame(d64 nowSeconds) {
     s_plugin.ticks += 1;
     if ((s_plugin.ticks % 40u) == 1u)
         printf("[plugin] tick %llu  t=%.2f\n",
                (unsigned long long) s_plugin.ticks, nowSeconds);
 }
 
-bool Hot_save(void *buf, bytes cap, bytes *outLen) {
+bool Hot_save(any buf, bytes cap, bytes *outLen) {
     if (outLen)
         *outLen = 0;
     if (!buf || !outLen || cap < sizeof(PluginState))
@@ -42,7 +42,7 @@ bool Hot_save(void *buf, bytes cap, bytes *outLen) {
     return true;
 }
 
-bool Hot_restore(const void *buf, bytes len) {
+bool Hot_restore(const_any buf, bytes len) {
     if (!buf || len != sizeof(PluginState))
         return false;
     PluginState in;
@@ -55,17 +55,17 @@ bool Hot_restore(const void *buf, bytes len) {
 
 typedef struct HotModuleExport {
     const char *name;
-    void *fn;
+    any fn;
 } HotModuleExport;
 
 static const HotModuleExport s_exports[] = {
-    { "Plugin_frame", (void*) Plugin_frame },
-    { "Hot_save",     (void*) Hot_save },
-    { "Hot_restore",  (void*) Hot_restore },
+    { "Plugin_frame", (any) Plugin_frame },
+    { "Hot_save",     (any) Hot_save },
+    { "Hot_restore",  (any) Hot_restore },
 };
 
-const void *Hot_getExports(u32 *outCount);
-const void *Hot_getExports(u32 *outCount) {
+const_any Hot_getExports(u32 *outCount);
+const_any Hot_getExports(u32 *outCount) {
     if (outCount)
         *outCount = (u32) (sizeof(s_exports) / sizeof(s_exports[0]));
     return s_exports;

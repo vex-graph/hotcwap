@@ -181,7 +181,7 @@ static bool wait_for_generation(HotModule *hot, u32 target) {
     return false;
 }
 
-int main(void) {
+int main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("wrong_binary_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;

@@ -28,14 +28,14 @@ static int g_failures = 0;
 
 static int g_teardownCallCount = 0;
 /** Records invocation of the teardown callback for ordering assertions. */
-static void testTeardownCallback(void) {
+static fn testTeardownCallback() {
     g_teardownCallCount++;
 }
 
 #define BULK_TEARDOWN_COUNT 64
 static int g_bulkCount = 0;
 #define DEFINE_DUMMY_TEARDOWN(N) \
-    static void dummyTeardown_##N(void) { g_bulkCount++; }
+    static fn dummyTeardown_##N() { g_bulkCount++; }
 
 DEFINE_DUMMY_TEARDOWN(0) DEFINE_DUMMY_TEARDOWN(1) DEFINE_DUMMY_TEARDOWN(2) DEFINE_DUMMY_TEARDOWN(3)
 DEFINE_DUMMY_TEARDOWN(4) DEFINE_DUMMY_TEARDOWN(5) DEFINE_DUMMY_TEARDOWN(6) DEFINE_DUMMY_TEARDOWN(7)
@@ -46,7 +46,7 @@ DEFINE_DUMMY_TEARDOWN(20) DEFINE_DUMMY_TEARDOWN(21) DEFINE_DUMMY_TEARDOWN(22) DE
 DEFINE_DUMMY_TEARDOWN(24) DEFINE_DUMMY_TEARDOWN(25) DEFINE_DUMMY_TEARDOWN(26) DEFINE_DUMMY_TEARDOWN(27)
 DEFINE_DUMMY_TEARDOWN(28) DEFINE_DUMMY_TEARDOWN(29) DEFINE_DUMMY_TEARDOWN(30) DEFINE_DUMMY_TEARDOWN(31)
 
-int main(void) {
+int main() {
     printf("=== Running Throwable & Exception Handling Test Suite ===\n");
 
     // Test 1: TRY with true condition succeeds without error

@@ -119,7 +119,7 @@ static bool path_exists(const char *path) {
     return stat(path, &st) == 0;
 }
 
-int main(void) {
+int main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("uninstall_guard_test: SKIP (POSIX path contract)\n");
     return B_TEST_SKIP;

@@ -41,7 +41,7 @@ static bool dirExists(const char *path) {
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-int main(void) {
+int main() {
     printf("=== Running Manifest UNINSTALL & Bespoke Bridge Test Suite ===\n");
 
     // Isolate in scratch dir via VEX_MANIFEST test seam
@@ -113,7 +113,7 @@ int main(void) {
 
     // Step / check bespoke
     bool changed = bridgeBespokeCheck();
-    (void) changed;
+    (discard) changed;
     CHECK(true, "bridgeBespokeCheck() executed safely");
 
     // Remove scratch base

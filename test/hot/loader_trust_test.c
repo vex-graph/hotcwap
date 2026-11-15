@@ -99,7 +99,7 @@ static bool rmtree(const char *path) {
     return true;
 }
 
-int main(void) {
+int main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("loader_trust_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;

@@ -1,6 +1,8 @@
 /* MODULE: cold-update owner. Real two-section dylibs, exact SHA256 references,
  * synchronous state handoff, whole-set rejection, disk revert and recovery.
  * Caller excludes users for each update. No concurrent loader/sandbox claim. */
+
+#include "vex.h"
 #include "hot.h"
 #include "manifest.h"
 #include "security/crypto.h"
@@ -11,35 +13,35 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static void path(const char *base, const char *name, char *dest) {
+static fn path(const char *base, const char *name, char *dest) {
     assert(snprintf(dest, 1024, "%s/%s", base, name) < 1024);
 }
 
-static void copy(const char *source, const char *dest) {
+static fn copy(const char *source, const char *dest) {
     FILE *in = fopen(source, "rb"), *out = fopen(dest, "wb");
     assert(in && out);
-    unsigned char bytes[4096];
+    u8 buffer[4096];
     bytes n;
-    while ((n = fread(bytes, 1, sizeof(bytes), in)))
-        assert(fwrite(bytes, 1, n, out) == n);
+    while ((n = fread(buffer, 1, sizeof(buffer), in)))
+        assert(fwrite(buffer, 1, n, out) == n);
     assert(!ferror(in));
     assert(fclose(in) == 0 && fclose(out) == 0);
 }
 
-static void digest(const char *source, u8 *dest) {
+static fn digest(const char *source, u8 *dest) {
     FILE *in = fopen(source, "rb");
     assert(in);
     CryptoSha256 hash;
     Crypto_sha256Init(&hash);
-    unsigned char bytes[4096];
+    u8 buffer[4096];
     bytes n;
-    while ((n = fread(bytes, 1, sizeof(bytes), in)))
-        Crypto_sha256Update(&hash, bytes, n);
+    while ((n = fread(buffer, 1, sizeof(buffer), in)))
+        Crypto_sha256Update(&hash, buffer, n);
     assert(!ferror(in) && fclose(in) == 0);
     Crypto_sha256Final(&hash, dest);
 }
 
-static void prepare(const char *base, const char *version, const char *payload, HotSectionDigest *specs) {
+static fn prepare(const char *base, const char *version, const char *payload, HotSectionDigest *specs) {
     for (bytes i = 0; i < 2; ++i) {
         HotSectionDigest *item = &specs[i];
         char dir[1024], source[1024], dest[1024];
@@ -51,10 +53,10 @@ static void prepare(const char *base, const char *version, const char *payload, 
     }
 }
 
-static int value(HotModule *hot, const char *name) {
-    HotFn fn = Hot_getSymbol(hot, name);
-    assert(fn);
-    return ((int (*)(void)) fn)();
+static i32 value(HotModule *hot, const char *name) {
+    HotFn symbol = Hot_getSymbol(hot, name);
+    assert(symbol);
+    return ((i32 (*)()) symbol)();
 }
 
 int main(int argc, char **argv) {
@@ -85,10 +87,10 @@ int main(int argc, char **argv) {
     u32 loaded = 99;
     assert(Hot_updateCold(hot, payload, specs, 2, &loaded) == HOT_OK && loaded == 2);
     assert(value(hot, "one_version") == 1 && value(hot, "two_version") == 1);
-    ((void (*)(int)) Hot_getSymbol(hot, "one_set"))(77);
-    ((void (*)(int)) Hot_getSymbol(hot, "two_set"))(88);
+    ((fn (*)(i32)) Hot_getSymbol(hot, "one_set"))(77);
+    ((fn (*)(i32)) Hot_getSymbol(hot, "two_set"))(88);
     u64 generation = Hot_getGeneration(hot);
-    for (int i = 0; i < 20; ++i) {
+    for (i32 i = 0; i < 20; ++i) {
         prepare(base, i % 2 ? "v1" : "v2", payload, specs);
         assert(Hot_updateCold(hot, payload, specs, 2, &loaded) == HOT_OK && loaded == 2);
         assert(Hot_getGeneration(hot) == ++generation);
@@ -129,7 +131,7 @@ int main(int argc, char **argv) {
     assert(MANIFEST_UPDATE("agent", payload));
     char stamp[1024], blocked[1040];
     assert(ManifestPath_generationFile("agent", stamp, sizeof(stamp)));
-    assert(snprintf(blocked, sizeof(blocked), "%s.tmp", stamp) < (int) sizeof(blocked));
+    assert(snprintf(blocked, sizeof(blocked), "%s.tmp", stamp) < (i32) sizeof(blocked));
     assert(mkdir(blocked, 0700) == 0);
     assert(!MANIFEST_PROMOTE_LIBRARY("agent"));
     assert(MANIFEST_GENERATION("agent") == generation);

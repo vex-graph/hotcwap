@@ -22,18 +22,18 @@
  *   _Atomic u32 count : initialized rows, published after row initialization.
  *   u64 refusals : allocation/extent refusal count; reset by free/constructor.
  * SLOT RECORD: HotTrampoline
- *   _Atomic(void*) ptr : current target; borrowed code address.
- *   _Atomic(void*) fallback_ptr : previous target; NOT an ownership pin.
+ *   _Atomic(any) ptr : current target; borrowed code address.
+ *   _Atomic(any) fallback_ptr : previous target; NOT an ownership pin.
  *   char name[HOT_MANIFEST_MAX_NAME] : copied exact nonempty symbol identity.
  * FUNCTION REGISTRY:
- *   HotTrampolineTable_0(void) : empty constructor; chooser/zero in header.
+ *   HotTrampolineTable_0() : empty constructor; chooser/zero in header.
  *   bool HotTrampolineTable_reserve(self, capacity) : fallible cold growth.
  *   int HotTrampolineTable_register(self, name) : exact identity, duplicate reuse.
  *   int HotTrampolineTable_find(self, name) : cold lookup, -1 absent/null.
- *   void HotTrampolineTable_set(self, idx, ptr) : atomic replace and fallback.
- *   void *HotTrampolineTable_get(self, idx) : target/fallback, nullptr invalid.
+ *   fn HotTrampolineTable_set(self, idx, ptr) : atomic replace and fallback.
+ *   any HotTrampolineTable_get(self, idx) : target/fallback, nullptr invalid.
  *   u64 HotTrampolineTable_exhaustionCount(const self) : epoch refusals.
- *   void HotTrampolineTable_free(self) : release backing/reset; nullptr no-op.
+ *   fn HotTrampolineTable_free(self) : release backing/reset; nullptr no-op.
  *   bool HotTrampolineTable_toString(const self, dest, cap, outTruncated)
  *   bool HotTrampolineTable_toStringStruct(const self, dest, cap, outTruncated)
  * PRIVATE: refuse(self, quantity) reports once/counts always; project formats.
@@ -42,7 +42,7 @@
  * setter can forge ownership. Cold projections expose metadata, not code contents.
  * ============================================================================ */
 
-HotTrampolineTable HotTrampolineTable_0(void) {
+HotTrampolineTable HotTrampolineTable_0() {
     return (HotTrampolineTable) {0};
 }
 
@@ -116,25 +116,25 @@ int HotTrampolineTable_register(HotTrampolineTable *self, const char *name) {
     return (int) count;
 }
 
-void HotTrampolineTable_set(HotTrampolineTable *self, int idx, void *ptr) {
+fn HotTrampolineTable_set(HotTrampolineTable *self, int idx, any ptr) {
     if (self == nullptr || idx < 0 || (u32) idx >= atomic_load(&(*self).count))
         return;
     HotTrampoline *row = &(*self).rows[idx];
-    void *old = atomic_load(&(*row).ptr);
+    any old = atomic_load(&(*row).ptr);
     if (old != nullptr && old != ptr)
         atomic_store(&(*row).fallback_ptr, old);
     atomic_store(&(*row).ptr, ptr);
 }
 
-void *HotTrampolineTable_get(HotTrampolineTable *self, int idx) {
+any HotTrampolineTable_get(HotTrampolineTable *self, int idx) {
     if (self == nullptr || idx < 0 || (u32) idx >= atomic_load(&(*self).count))
         return nullptr;
     HotTrampoline *row = &(*self).rows[idx];
-    void *ptr = atomic_load(&(*row).ptr);
+    any ptr = atomic_load(&(*row).ptr);
     return ptr != nullptr ? ptr : atomic_load(&(*row).fallback_ptr);
 }
 
-void HotTrampolineTable_free(HotTrampolineTable *self) {
+fn HotTrampolineTable_free(HotTrampolineTable *self) {
     if (self == nullptr)
         return;
     free((*self).rows);
@@ -154,7 +154,7 @@ static bool project(const HotTrampolineTable *self, bool structure, char *dest, 
             n = snprintf(dest, cap, "nullptr");
         else if (structure)
             n = snprintf(dest, cap, "HotTrampolineTable{rows=%p,capacity=%u,count=%u,refusals=%llu}",
-                         (void*) (*self).rows, (*self).capacity, atomic_load(&(*self).count), (unsigned long long) (*self).refusals);
+                         (any) (*self).rows, (*self).capacity, atomic_load(&(*self).count), (unsigned long long) (*self).refusals);
         else
             n = snprintf(dest, cap, "symbols=%u capacity=%u", atomic_load(&(*self).count), (*self).capacity);
     }

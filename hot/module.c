@@ -8,16 +8,10 @@
 #include <string.h>
 #include <dlfcn.h>
 #include <dirent.h>
-#include <errno.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <time.h>
 #include <limits.h>
 #include <unistd.h>
-#include "security/crypto.h"
-#include "util/throw.h"
-
-#include "util/annotation.h"
 
 ;;DEFINITION
 /**
@@ -82,7 +76,7 @@
  *   HotModuleInternal (per-section slot — HotModule's slot type, no own API):
  *     char name[HOT_MANIFEST_MAX_NAME];  // section stem (no extension)
  *     char path[HOT_PATH_LEN];           // source dylib path
- *     void *handle;                      // dlopen handle (NULL = unloaded)
+ *     any handle;                      // dlopen handle (NULL = unloaded)
  *     bool loaded;                       // true once first load succeeds
  *
  *   HotSaveSlot (per-section state blob captured off-thread):
@@ -93,8 +87,8 @@
  *   HotStagedSection (verify-phase staging, transient inside perform_swap):
  *     HotModuleInternal *mod;   // resolved slot (created if new)
  *     char path[HOT_PATH_LEN];  // dylib path
- *     void *handle;             // dlopened, not yet adopted
- *     const void *trampolines;  // Hot_getExports table
+ *     any handle;             // dlopened, not yet adopted
+ *     const_any trampolines;  // Hot_getExports table
  *     u32 trampolineCount; // entries
  *
  *   Segregated (own files, see their overviews):
@@ -228,7 +222,7 @@ HotModule *Hot_init(const char *library) {
 // CORE FUNCTIONS (PUBLIC & PRIVATE)
 
 /** Stops the state-save worker, closes loaded modules, drains retired handles, and frees. */
-void Hot_shutdown(HotModule *hot) {
+fn Hot_shutdown(HotModule *hot) {
     if (!hot)
         return;
 
@@ -239,8 +233,8 @@ void Hot_shutdown(HotModule *hot) {
     for (u32 i = 0; i < (*hot).module_count; i++) {
         HotModuleInternal *mod = &(*hot).modules[i];
         if ((*mod).handle) {
-            typedef void (*ShutdownFn)(void);
-            ShutdownFn shutdown = (ShutdownFn) dlsym((*mod).handle, "Hot_shutdown_module");
+            typedef fn (*ShutdownFn)();
+            ShutdownFn shutdown = dlsym((*mod).handle, "Hot_shutdown_module");
             if (shutdown)
                 shutdown();
             dlclose((*mod).handle);
@@ -341,10 +335,10 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
         // Duplicate public identities make dispatch order-dependent; reject the
         // complete candidate before any restore or target publication.
         for (u32 i = 0; i < stagedCount; ++i) {
-            const struct { const char *name; void *fn; } *left = staged[i].trampolines;
+            const struct { const char *name; any fn; } *left = staged[i].trampolines;
             for (u32 k = 0; k < staged[i].trampolineCount; ++k) {
                 for (u32 j = 0; j <= i; ++j) {
-                    const struct { const char *name; void *fn; } *right = staged[j].trampolines;
+                    const struct { const char *name; any fn; } *right = staged[j].trampolines;
                     u32 limit = j == i ? k : staged[j].trampolineCount;
                     for (u32 r = 0; r < limit; ++r) {
                         if (strcmp(left[k].name, right[r].name) == 0) {
@@ -374,7 +368,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
             HotTrampoline *row = &(*table).rows[r];
             bool present = false;
             for (u32 i = 0; i < stagedCount; ++i) {
-                const struct { const char *name; void *fn; } *exports = staged[i].trampolines;
+                const struct { const char *name; any fn; } *exports = staged[i].trampolines;
                 for (u32 k = 0; k < staged[i].trampolineCount; ++k) {
                     if (strcmp((*row).name, exports[k].name) == 0)
                         present = true;
@@ -404,11 +398,11 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
         }
         if (!match)
             continue; // section absent from the new set; its old slot stays mapped
-        typedef bool (*RestoreFn)(const void *, bytes);
+        typedef bool (*RestoreFn)(const_any , bytes);
         RestoreFn restore = (RestoreFn) dlsym((*match).handle, "Hot_restore");
         bool restored = (restore && restore((*slot).buf, (*slot).len));
         if (!restored && restore) {
-            typedef bool (*MigrateFn)(const char *, const void *, bytes, void *, bytes, bytes *);
+            typedef bool (*MigrateFn)(const char *, const_any , bytes, any , bytes, bytes *);
             MigrateFn migrate = (MigrateFn) dlsym((*match).handle, "Hot_migrate");
             if (migrate) {
                 alignas(16) u8 migratedBuf[HOT_SAVE_SLOT_CAP];
@@ -461,7 +455,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
         strncpy((*mod).path, (*s).path, HOT_PATH_LEN - 1);
         (*mod).path[HOT_PATH_LEN - 1] = '\0';
 
-        const struct { const char *name; void *fn; } *entries = (*s).trampolines;
+        const struct { const char *name; any fn; } *entries = (*s).trampolines;
         for (u32 k = 0; k < (*s).trampolineCount; k++) {
             int tidx = HotTrampolineTable_find(table, entries[k].name);
             if (tidx < 0)
@@ -592,7 +586,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         HotModuleInternal *module = &(*hot).modules[i];
         if (!(*module).loaded)
             continue;
-        typedef bool (*SaveFn)(void *, bytes, bytes *);
+        typedef bool (*SaveFn)(any , bytes, bytes *);
         SaveFn save = (SaveFn) dlsym((*module).handle, "Hot_save");
         if (save == nullptr)
             continue; // stateless module, or all state belongs to resident host
@@ -700,26 +694,26 @@ HotResult Hot_poll(HotModule *hot, u32 *loaded_count) {
 }
 
 /** Invokes the named loaded module's optional shutdown export. */
-void Hot_shutdownModule(HotModule *hot, const char *module_name) {
+fn Hot_shutdownModule(HotModule *hot, const char *module_name) {
     if (!hot || !module_name)
         return;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return;
-    typedef void (*ShutdownFn)(void);
+    typedef fn (*ShutdownFn)();
     ShutdownFn shutdown = (ShutdownFn) dlsym((*mod).handle, "Hot_shutdown_module");
     if (shutdown)
         shutdown();
 }
 
 /** Calls the named loaded module's state-save export into the caller's buffer. */
-bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, bytes cap, bytes *outLen) {
+bool Hot_saveModule(HotModule *hot, const char *module_name, any buf, bytes cap, bytes *outLen) {
     if (!hot || !module_name || !buf || !outLen)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
-    typedef bool (*SaveFn)(void *, bytes, bytes *);
+    typedef bool (*SaveFn)(any , bytes, bytes *);
     SaveFn save = (SaveFn) dlsym((*mod).handle, "Hot_save");
     if (!save)
         return false;
@@ -727,13 +721,13 @@ bool Hot_saveModule(HotModule *hot, const char *module_name, void *buf, bytes ca
 }
 
 /** Calls the named loaded module's state-restore export with the supplied bytes. */
-bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf, bytes len) {
+bool Hot_restoreModule(HotModule *hot, const char *module_name, const_any buf, bytes len) {
     if (!hot || !module_name || !buf)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
-    typedef bool (*RestoreFn)(const void *, bytes);
+    typedef bool (*RestoreFn)(const_any , bytes);
     RestoreFn restore = (RestoreFn) dlsym((*mod).handle, "Hot_restore");
     if (!restore)
         return false;
@@ -742,13 +736,13 @@ bool Hot_restoreModule(HotModule *hot, const char *module_name, const void *buf,
 
 /** Calls the named loaded module's migration export into the caller's destination. */
 bool Hot_migrateModule(HotModule *hot, const char *module_name, const char *oldVersion,
-                        const void *oldBuf, bytes oldLen, void *newBuf, bytes newCap, bytes *outLen) {
+                        const_any oldBuf, bytes oldLen, any newBuf, bytes newCap, bytes *outLen) {
     if (!hot || !module_name || !oldVersion || !oldBuf || !newBuf || !outLen)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
     if (!mod || !(*mod).loaded || !(*mod).handle)
         return false;
-    typedef bool (*MigrateFn)(const char *, const void *, bytes, void *, bytes, bytes *);
+    typedef bool (*MigrateFn)(const char *, const_any , bytes, any , bytes, bytes *);
     MigrateFn migrate = (MigrateFn) dlsym((*mod).handle, "Hot_migrate");
     if (!migrate)
         return false;
@@ -767,7 +761,7 @@ HotFn Hot_getSymbol(HotModule *hot, const char *name) {
     if (tidx < 0)
         return nullptr;
 
-    return (HotFn) HotTrampolineTable_get(table, tidx);
+    return HotTrampolineTable_get(table, tidx);
 }
 
 ;;GETTER

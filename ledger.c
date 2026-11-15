@@ -1,6 +1,4 @@
-#include "util/annotation.h"
-
-#include "util/platform.h"
+#include "vex.h"
 
 ;;DEFINITION
 /** The install ledger remembers an application's install state outside its
@@ -19,7 +17,7 @@
  * LedgerState state             absent, installed, or uninstalled state
  * FUNCTION REGISTRY
  * Constructors: Ledger *Ledger_open(const char *org, const char *app)
- * Lifecycle: void Ledger_free(Ledger *ledger)
+ * Lifecycle: fn Ledger_free(Ledger *ledger)
  * Operations: bool Ledger_recordInstall(Ledger *ledger, const char *version)
  *   bool Ledger_markUninstalled(Ledger *ledger), bool Ledger_forget(Ledger *ledger)
  * Projections: LedgerState Ledger_state(const Ledger *ledger)
@@ -103,7 +101,7 @@ static bool mkdir_p(const char *path) {
 }
 
 // Sanitize org/app into one filename-safe key (non [alnum_] → '_').
-static void sanitize(const char *src, char *dest, bytes cap) {
+static fn sanitize(const char *src, char *dest, bytes cap) {
     bytes k = 0;
     for (const char *p = src; *p != '\0' && k + 1 < cap; p++)
         dest[k++] = (isalnum((unsigned char) *p) || *p == '_') ? *p : '_';
@@ -123,7 +121,7 @@ static bool record_path(char *dest, bytes cap, const char *org, const char *app)
 
 // --- the class ---------------------------------------------------------------
 
-static void apply_record(Ledger *ledger, const char *record) {
+static fn apply_record(Ledger *ledger, const char *record) {
     const char *nl = strchr(record, '\n');
     if (nl == nullptr)
         return;
@@ -173,7 +171,7 @@ Ledger *Ledger_open(const char *org, const char *app) {
 }
 
 /** Frees the ledger's owned strings and resets its in-memory record. */
-void Ledger_free(Ledger *ledger) {
+fn Ledger_free(Ledger *ledger) {
     free(ledger);
 }
 
@@ -244,6 +242,6 @@ bool Ledger_lastVersion(const Ledger *ledger, char *dest, bytes cap) {
 
 /** Returns the ledger's last diagnostic string, or a fallback for null. */
 const char *Ledger_lastError(const Ledger *ledger) {
-    (void) ledger;
+    (discard) ledger;
     return "";
 }

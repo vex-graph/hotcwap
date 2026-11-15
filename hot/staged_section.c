@@ -20,7 +20,7 @@
 
 static u32 s_loadSerial = 0;
 
-u32 HotStaging_nextSerial(void) {
+u32 HotStaging_nextSerial() {
     return ++s_loadSerial;
 }
 
@@ -146,7 +146,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
         return HOT_ERROR_ABI_MISMATCH;
     }
 
-    void *handle = dlopen(loadPath, RTLD_NOW | RTLD_LOCAL);
+    any handle = dlopen(loadPath, RTLD_NOW | RTLD_LOCAL);
     // dlopen retains the mapped image; this unique private copy is transport
     // only, not a resource root. Reclaim it on success and rejection rather
     // than accumulating releases.
@@ -165,7 +165,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
         return HOT_ERROR_ABI_MISMATCH;
     }
 
-    typedef const void *(*TrampolinesFn)(u32*);
+    typedef const_any (*TrampolinesFn)(u32*);
     TrampolinesFn get_trampolines = (TrampolinesFn) dlsym(handle, "Hot_getExports");
     if (!get_trampolines) {
         dlclose(handle);
@@ -203,7 +203,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
 
     // Every exported row must name a real function. A section that exports an
     // empty or half-filled table is refused before anything is adopted.
-    const struct { const char *name; void *fn; } *exports = (*out).trampolines;
+    const struct { const char *name; any fn; } *exports = (*out).trampolines;
     bool valid = exports != nullptr && (*out).trampolineCount > 0;
     for (u32 k = 0; valid && k < (*out).trampolineCount; ++k)
         valid = exports[k].name != nullptr && exports[k].fn != nullptr &&

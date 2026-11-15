@@ -141,7 +141,7 @@ static bool stage_module(const char *loadBase) {
     return copy_file(HOT_BEHAVIOR_MODULE, dst);
 }
 
-int main(void) {
+int main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("shutdown_order_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;

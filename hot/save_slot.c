@@ -32,13 +32,13 @@ HotSavePhase HotSaveSlot_phase(const HotModule *hot) {
 
 // Runs ON THE SAVE WORKER thread, under saveLock. Copies each loaded module's
 // state blob via its Hot_save export into saveSlots.
-static void snapshot_modules(HotModule *hot) {
+static fn snapshot_modules(HotModule *hot) {
     (*hot).saveCount = 0;
     for (u32 i = 0; i < (*hot).module_count && (*hot).saveCount < HOT_MAX_MODULES; i++) {
         HotModuleInternal *mod = &(*hot).modules[i];
         if (!(*mod).loaded || !(*mod).handle)
             continue;
-        typedef bool (*SaveFn)(void *, bytes, bytes *);
+        typedef bool (*SaveFn)(any , bytes, bytes *);
         SaveFn save = (SaveFn) dlsym((*mod).handle, "Hot_save");
         if (!save)
             continue;
@@ -56,7 +56,7 @@ static void snapshot_modules(HotModule *hot) {
 // The worker loop: sleeps on saveCond (capped so every path reaches the exit
 // check bounded), serves one REQUESTED handshake, exits on STOPPED. Both
 // transitions are made here, under saveLock, so no other file can invent one.
-void *HotSaveSlot_workerMain(void *arg) {
+any HotSaveSlot_workerMain(any arg) {
     HotModule *hot = (HotModule*) arg;
     pthread_mutex_lock(&(*hot).saveLock);
     for (;;) {
@@ -84,7 +84,7 @@ void *HotSaveSlot_workerMain(void *arg) {
 // after shutdown begins. Teardown Order Law: worker resources die before the
 // handles they read. Setting STOPPED also discards a REQUESTED handshake that
 // has not been served yet, so shutdown never waits on a fresh snapshot.
-void HotSaveSlot_workerShutdown(HotModule *hot) {
+fn HotSaveSlot_workerShutdown(HotModule *hot) {
     pthread_mutex_lock(&(*hot).saveLock);
     if ((HotSavePhase) atomic_load_explicit(&(*hot).savePhase, memory_order_relaxed) == HOT_SAVE_STOPPED) {
         pthread_mutex_unlock(&(*hot).saveLock);

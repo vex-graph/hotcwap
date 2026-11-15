@@ -1,10 +1,7 @@
 #ifndef HOT_HOT_SAVE_SLOT_H
 #define HOT_HOT_SAVE_SLOT_H
 
-#include <stdalign.h>
-#include <stddef.h>
-#include <stdint.h>
-
+#include "vex.h"
 #include "hot/hot-limits.h"
 #include "manifest.h"
 

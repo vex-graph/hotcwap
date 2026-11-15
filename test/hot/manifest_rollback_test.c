@@ -192,7 +192,7 @@ static bool poll_until_generation(HotModule *hot, u64 target) {
     return false;
 }
 
-int main(void) {
+int main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("manifest_rollback_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;
@@ -251,8 +251,8 @@ int main(void) {
     CHECK(setFn != nullptr, "hot_behavior_set_phase_bias unresolved (gen 1)");
     CHECK(getFn != nullptr, "hot_behavior_get_phase_bias unresolved (gen 1)");
     if (setFn)
-        ((void (*)(f32)) setFn)(PHASE_BIAS);
-    f32 bias0 = getFn ? ((f32 (*)(void)) getFn)() : 0.0f;
+        ((fn (*)(f32)) setFn)(PHASE_BIAS);
+    f32 bias0 = getFn ? ((f32 (*)()) getFn)() : 0.0f;
     CHECK(bias0 == PHASE_BIAS, "phaseBias not applied in gen 1 (got %f)", bias0);
     HotFn pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "hot_behavior_pulse unresolved (gen 1)");
@@ -285,7 +285,7 @@ int main(void) {
               p, pulse0);
     }
     getFn = Hot_getSymbol(hot, "hot_behavior_get_phase_bias");
-    f32 biasBack = getFn ? ((f32 (*)(void)) getFn)() : 0.0f;
+    f32 biasBack = getFn ? ((f32 (*)()) getFn)() : 0.0f;
     CHECK(biasBack == PHASE_BIAS,
           "generation-1 phaseBias lost after rollback (got %f, %s)",
           biasBack, Hot_getLastError(hot));
@@ -313,7 +313,7 @@ int main(void) {
           (unsigned long long) Hot_getGeneration(hot));
     CHECK(Hot_getGeneration(hot) == 3u, "post-heal generation != 3");
     getFn = Hot_getSymbol(hot, "hot_behavior_get_phase_bias");
-    f32 biasHealed = getFn ? ((f32 (*)(void)) getFn)() : 0.0f;
+    f32 biasHealed = getFn ? ((f32 (*)()) getFn)() : 0.0f;
     CHECK(biasHealed == PHASE_BIAS,
           "phaseBias did not survive the heal swap (got %f)", biasHealed);
     pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");

@@ -40,9 +40,9 @@ static int parkedCount(const HotRetireRing *ring) {
     return n;
 }
 
-int main(void) {
+int main() {
     // NULL-self safety: every entry point is a no-op.
-    HotRetireRing_retire(nullptr, (void*) 0x1);
+    HotRetireRing_retire(nullptr, (any) 0x1);
     HotRetireRing_advance(nullptr);
     HotRetireRing_drainAll(nullptr);
     CHECK(1);
@@ -53,7 +53,7 @@ int main(void) {
     HotRetireRing_retire(&ring, nullptr);
     CHECK(parkedCount(&ring) == 0);
 
-    void *h = dlopen("/usr/lib/libSystem.B.dylib", RTLD_NOW | RTLD_NODELETE);
+    any h = dlopen("/usr/lib/libSystem.B.dylib", RTLD_NOW | RTLD_NODELETE);
     if (!h) {
         printf("hot_retire_test: SKIP (no dlopen handle available)\n");
         return B_TEST_SKIP;

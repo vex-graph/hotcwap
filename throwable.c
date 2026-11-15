@@ -40,7 +40,7 @@
  *
  * PRIVATE HELPERS:
  * ----------------------------------------------------------------------------
- *   - Throwable_ensureDefaultTeardown(void)   : registers default Window_destroyAll hook
+ *   - Throwable_ensureDefaultTeardown()   : registers default Window_destroyAll hook
  *
  * FUNCTION REGISTRY:
  * ----------------------------------------------------------------------------
@@ -51,14 +51,14 @@
  *   - (none)
  *
  * Public Core Functions: (.h)
- *   - Throwable_registerTeardown(fn)          : register teardown callback
- *   - Throwable_unregisterTeardown(fn)        : unregister teardown callback
- *   - Throwable_runTeardown(void)             : execute all teardowns in LIFO order
+ *   - Throwable_registerTeardown()          : register teardown callback
+ *   - Throwable_unregisterTeardown()        : unregister teardown callback
+ *   - Throwable_runTeardown()             : execute all teardowns in LIFO order
  *   - Throwable_throw(cat, site, file, line, msg, fmt, ...) : fatal exception exit
  *   - Throwable_tryCatch(cond, cat, site, file, line, msg, fmt, ...) : non-fatal check
  *
  * Private Core Functions: (.c static)
- *   - Throwable_ensureDefaultTeardown(void)   : lazy-init default teardown hooks
+ *   - Throwable_ensureDefaultTeardown()   : lazy-init default teardown hooks
  *
  * Public Setters: (.h)
  *   - (none)
@@ -85,7 +85,7 @@ static bool s_defaultTeardownRegistered = false;
 
 // CORE FUNCTIONS (PUBLIC & PRIVATE)
 
-static void Throwable_ensureDefaultTeardown(void) {
+static fn Throwable_ensureDefaultTeardown() {
     if (!s_defaultTeardownRegistered) {
         s_defaultTeardownRegistered = true;
         Throwable_registerTeardown(Window_destroyAll);
@@ -93,7 +93,7 @@ static void Throwable_ensureDefaultTeardown(void) {
 }
 
 /** Registers a teardown callback for the process-level throwable shutdown path. */
-void Throwable_registerTeardown(ThrowableTeardownFn fn) {
+fn Throwable_registerTeardown(ThrowableTeardownFn fn) {
     if (fn == nullptr) return;
 
     if (s_teardownList == nullptr) {
@@ -118,7 +118,7 @@ void Throwable_registerTeardown(ThrowableTeardownFn fn) {
 }
 
 /** Removes a previously registered teardown callback. */
-void Throwable_unregisterTeardown(ThrowableTeardownFn fn) {
+fn Throwable_unregisterTeardown(ThrowableTeardownFn fn) {
     if (fn == nullptr || s_teardownList == nullptr) return;
 
     u32 count = ChunkedList_size(s_teardownList);
@@ -132,7 +132,7 @@ void Throwable_unregisterTeardown(ThrowableTeardownFn fn) {
 }
 
 /** Runs the registered teardown callbacks once in their registered order. */
-void Throwable_runTeardown(void) {
+fn Throwable_runTeardown() {
     Throwable_ensureDefaultTeardown();
     if (s_teardownList != nullptr) {
         u32 count = ChunkedList_size(s_teardownList);
@@ -151,7 +151,7 @@ void Throwable_runTeardown(void) {
     s_defaultTeardownRegistered = false;
 }
 
-_Noreturn void Throwable_throw(ExceptionCategory category,
+_Noreturn fn Throwable_throw(ExceptionCategory category,
                               const char *site,
                               const char *file,
                               int line,

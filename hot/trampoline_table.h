@@ -1,9 +1,7 @@
 #ifndef HOT_HOT_TRAMPOLINE_H
 #define HOT_HOT_TRAMPOLINE_H
 
-#include <stdatomic.h>
-#include <stdint.h>
-
+#include "vex.h"
 #include "manifest.h"
 
 // hot/hot_trampoline.h — Per-instance atomic function-pointer table.
@@ -16,8 +14,8 @@
 // fallbacks before resuming after retiring the old images.
 
 typedef struct HotTrampoline {
-    _Atomic(void*) ptr;             // current generation target
-    _Atomic(void*) fallback_ptr;    // prior generation (mid-swap cover)
+    _Atomic(any) ptr;             // current generation target
+    _Atomic(any) fallback_ptr;    // prior generation (mid-swap cover)
     char name[HOT_MANIFEST_MAX_NAME]; // export symbol name
 } HotTrampoline;
 
@@ -33,11 +31,11 @@ typedef struct HotTrampolineTable {
     u64 refusals;                       // allocation/extent refusals this epoch
 } HotTrampolineTable;
 
-HotTrampolineTable HotTrampolineTable_0(void);
+HotTrampolineTable HotTrampolineTable_0();
 #define HotTrampolineTable() HotTrampolineTable_0()
 #define HotTrampolineTable_zero() HotTrampolineTable_0()
 bool HotTrampolineTable_reserve(HotTrampolineTable *self, u32 capacity);
-void HotTrampolineTable_free(HotTrampolineTable *self);
+fn HotTrampolineTable_free(HotTrampolineTable *self);
 u64 HotTrampolineTable_exhaustionCount(const HotTrampolineTable *self);
 bool HotTrampolineTable_toString(const HotTrampolineTable *self, char *dest, bytes cap, bool *outTruncated);
 bool HotTrampolineTable_toStringStruct(const HotTrampolineTable *self, char *dest, bytes cap, bool *outTruncated);
@@ -46,10 +44,10 @@ bool HotTrampolineTable_toStringStruct(const HotTrampolineTable *self, char *des
 int HotTrampolineTable_register(HotTrampolineTable *self, const char *name);
 
 // Current function pointer, falling back to the prior generation on mid-swap NULL.
-void *HotTrampolineTable_get(HotTrampolineTable *self, int idx);
+any HotTrampolineTable_get(HotTrampolineTable *self, int idx);
 
 // Atomically swap a row's target, stashing the old pointer as fallback.
-void HotTrampolineTable_set(HotTrampolineTable *self, int idx, void *ptr);
+fn HotTrampolineTable_set(HotTrampolineTable *self, int idx, any ptr);
 
 // Find a row by name. Returns -1 if not found.
 int HotTrampolineTable_find(HotTrampolineTable *self, const char *name);

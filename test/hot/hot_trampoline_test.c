@@ -30,7 +30,7 @@ static int g_failures = 0;
 static int g_targetA = 1;
 static int g_targetB = 2;
 
-int main(void) {
+int main() {
     static HotTrampolineTable table; // zero-initialized (count 0)
 
     // register: in-order indices; NULL self / NULL name rejected.
@@ -55,8 +55,8 @@ int main(void) {
     CHECK(HotTrampolineTable_get(nullptr, 0) == nullptr);
 
     // set + get: the current target wins.
-    void *pa = (void*) &g_targetA;
-    void *pb = (void*) &g_targetB;
+    any pa = (any) &g_targetA;
+    any pb = (any) &g_targetB;
     HotTrampolineTable_set(&table, a, pa);
     CHECK(HotTrampolineTable_get(&table, a) == pa);
     HotTrampolineTable_set(&table, a, pb);
