@@ -15,7 +15,7 @@
 #define TEST_FATAL_THROW(...) THROW(__VA_ARGS__)
 #endif
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond, msg) do { \
     if (cond) { \
@@ -26,14 +26,14 @@ static int g_failures = 0;
     } \
 } while (0)
 
-static int g_teardownCallCount = 0;
+static i32 g_teardownCallCount = 0;
 /** Records invocation of the teardown callback for ordering assertions. */
 static fn testTeardownCallback() {
     g_teardownCallCount++;
 }
 
 #define BULK_TEARDOWN_COUNT 64
-static int g_bulkCount = 0;
+static i32 g_bulkCount = 0;
 #define DEFINE_DUMMY_TEARDOWN(N) \
     static fn dummyTeardown_##N() { g_bulkCount++; }
 
@@ -46,7 +46,7 @@ DEFINE_DUMMY_TEARDOWN(20) DEFINE_DUMMY_TEARDOWN(21) DEFINE_DUMMY_TEARDOWN(22) DE
 DEFINE_DUMMY_TEARDOWN(24) DEFINE_DUMMY_TEARDOWN(25) DEFINE_DUMMY_TEARDOWN(26) DEFINE_DUMMY_TEARDOWN(27)
 DEFINE_DUMMY_TEARDOWN(28) DEFINE_DUMMY_TEARDOWN(29) DEFINE_DUMMY_TEARDOWN(30) DEFINE_DUMMY_TEARDOWN(31)
 
-int main() {
+i32 main() {
     printf("=== Running Throwable & Exception Handling Test Suite ===\n");
 
     // Test 1: TRY with true condition succeeds without error
@@ -108,7 +108,7 @@ int main() {
     Exception_free(&gfxEx);
 
     // Test 8: fatal reporting is distinct, loud, and exits after teardown.
-    int reportPipe[2];
+    i32 reportPipe[2];
     if (pipe(reportPipe) != 0) {
         CHECK(false, "Failed to create fatal diagnostic capture pipe");
     } else {
@@ -124,7 +124,7 @@ int main() {
         }
         close(reportPipe[1]);
         if (pid > 0) {
-            int status = 0;
+            i32 status = 0;
             alarm(10); // A stuck emergency teardown must fail the test.
             pid_t waited = waitpid(pid, &status, 0);
             alarm(0);

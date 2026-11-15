@@ -26,7 +26,7 @@
 
 #include "ledger.h"
 
-static int s_failures = 0;
+static i32 s_failures = 0;
 
 #define CHECK(cond, ...)                                                        \
     do {                                                                        \
@@ -48,7 +48,7 @@ static bool rmtree(const char *path) {
         if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
             continue;
         char child[512];
-        int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
@@ -70,7 +70,7 @@ static bool rmtree(const char *path) {
     return true;
 }
 
-int main() {
+i32 main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("ledger_test: SKIP (POSIX state-file contract)\n");
     return B_TEST_SKIP;
@@ -88,7 +88,7 @@ int main() {
     }
 
     char app[64];
-    snprintf(app, sizeof(app), "ledger_test_%d", (int) getpid());
+    snprintf(app, sizeof(app), "ledger_test_%d", (i32) getpid());
     const char *org = "vexgraph.test";
 
     // A. Absent.

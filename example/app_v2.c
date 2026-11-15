@@ -29,7 +29,7 @@ fn run(d64 nowSeconds) {
     if ((s_app.frames % 20u) == 1u) {
         d64 squared = PI * PI;
         printf("[app v2] frame %4llu: pi * pi = %.6f   (pulse=%.2f)\n",
-               (unsigned long long) s_app.frames, squared,
+               (u64) s_app.frames, squared,
                s_corePulse ? (d64) s_corePulse(nowSeconds) : 0.0);
     }
 }

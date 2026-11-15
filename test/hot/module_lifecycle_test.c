@@ -20,7 +20,7 @@
 #include "hot.h"
 #include "manifest.h"
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -30,13 +30,13 @@ static int g_failures = 0;
         }                                                                  \
     } while (0)
 
-int main() {
+i32 main() {
     const char *tmp = getenv("TMPDIR");
     if (tmp == nullptr || *tmp == '\0')
         tmp = "/tmp";
 
     char base[512];
-    snprintf(base, sizeof base, "%svex-cwp-lifecycle-%d", tmp, (int) getpid());
+    snprintf(base, sizeof base, "%svex-cwp-lifecycle-%d", tmp, (i32) getpid());
     if (mkdir(base, 0700) != 0 && access(base, F_OK) != 0) {
         printf("module_lifecycle_test: cannot create %s\n", base);
         return 1;

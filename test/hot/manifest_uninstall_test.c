@@ -22,7 +22,7 @@
  * ============================================================================
  */
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond, msg) do { \
     if (cond) { \
@@ -41,7 +41,7 @@ static bool dirExists(const char *path) {
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-int main() {
+i32 main() {
     printf("=== Running Manifest UNINSTALL & Bespoke Bridge Test Suite ===\n");
 
     // Isolate in scratch dir via VEX_MANIFEST test seam
@@ -107,9 +107,9 @@ int main() {
 
     // #10 Bespoke Bridge Verification
     bridgeBespoke();
-    printf("Bespoke graphics state: %d\n", (int) bridgeBespokeGraphicsState());
-    printf("Bespoke networking state: %d\n", (int) bridgeBespokeNetworkingState());
-    printf("Bespoke smth state: %d\n", (int) bridgeBespokeSmthState());
+    printf("Bespoke graphics state: %d\n", (i32) bridgeBespokeGraphicsState());
+    printf("Bespoke networking state: %d\n", (i32) bridgeBespokeNetworkingState());
+    printf("Bespoke smth state: %d\n", (i32) bridgeBespokeSmthState());
 
     // Step / check bespoke
     bool changed = bridgeBespokeCheck();

@@ -30,9 +30,9 @@ fn run(d64 nowSeconds) {
     s_app.frames += 1;
 
     if ((s_app.frames % 20u) == 1u) {
-        int sum = 1 + 1;
+        i32 sum = 1 + 1;
         printf("[app v1] frame %4llu: 1 + 1 = %d   (pulse=%.2f)\n",
-               (unsigned long long) s_app.frames, sum,
+               (u64) s_app.frames, sum,
                s_corePulse ? (d64) s_corePulse(nowSeconds) : 0.0);
     }
 }

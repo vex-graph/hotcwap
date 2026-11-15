@@ -141,8 +141,8 @@ HotResult Hot_loadApplication(HotStack *stack) {
         (*stack).appCompatible = false;
         snprintf((*stack).lastError, sizeof((*stack).lastError),
                  "app wants core contract %llu, core publishes %llu",
-                 (unsigned long long) readExportAbi((*stack).app, "Hot_requires_core_abi"),
-                 (unsigned long long) (*stack).coreContract);
+                 (u64) readExportAbi((*stack).app, "Hot_requires_core_abi"),
+                 (u64) (*stack).coreContract);
         // Held, not torn down: a matching app promoted later re-gates cleanly
         // on the next poll without a rebind cost.
         return HOT_ERROR_ABI_MISMATCH;
@@ -213,8 +213,8 @@ HotResult Hot_pollAll(HotStack *stack, HotStackChanged *changed) {
                     (*stack).appCompatible = false;
                     snprintf((*stack).lastError, sizeof((*stack).lastError),
                              "app wants core contract %llu, core publishes %llu",
-                             (unsigned long long) readExportAbi((*stack).app, "Hot_requires_core_abi"),
-                             (unsigned long long) (*stack).coreContract);
+                             (u64) readExportAbi((*stack).app, "Hot_requires_core_abi"),
+                             (u64) (*stack).coreContract);
                 } else {
                     (*stack).appCompatible = true;
                     (*stack).lastError[0] = '\0';
@@ -238,8 +238,8 @@ HotResult Hot_pollAll(HotStack *stack, HotStackChanged *changed) {
                 (*stack).appCompatible = false;
                 snprintf((*stack).lastError, sizeof((*stack).lastError),
                          "app wants core contract %llu, core publishes %llu",
-                         (unsigned long long) readExportAbi((*stack).app, "Hot_requires_core_abi"),
-                         (unsigned long long) (*stack).coreContract);
+                         (u64) readExportAbi((*stack).app, "Hot_requires_core_abi"),
+                         (u64) (*stack).coreContract);
             } else {
                 (*stack).appCompatible = true;
                 (*stack).lastError[0] = '\0';

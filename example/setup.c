@@ -40,7 +40,7 @@ typedef fn  (*PluginFrameFn)(d64);
 
 static volatile sig_atomic_t s_stop = 0;
 
-static fn onSignal(int sig) {
+static fn onSignal(i32 sig) {
     (discard) sig;
     s_stop = 1;
 }
@@ -51,12 +51,12 @@ static d64 hostNow() {
     return (d64) ts.tv_sec + (d64) ts.tv_nsec / 1000000000.0;
 }
 
-static fn sleepMs(long ms) {
+static fn sleepMs(i64 ms) {
     struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
     nanosleep(&ts, nullptr);
 }
 
-int main(int argc, char **argv) {
+i32 main(i32 argc, char **argv) {
     const char *coreV2 = argc > 1 ? argv[1] : nullptr;
     const char *appV2  = argc > 2 ? argv[2] : nullptr;
     const char *appV3  = argc > 3 ? argv[3] : nullptr;
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     printf("[setup] core loaded, contract %llu\n",
-           (unsigned long long) Hot_getCoreContract(stack));
+           (u64) Hot_getCoreContract(stack));
 
     if (Hot_loadApplication(stack) != HOT_OK)
         printf("[setup] app not running: %s\n", Hot_getStackError(stack));
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
     d64 t0 = hostNow();
     bool didCore = false, didApp = false, didBad = false;
 
-    for (int tick = 0; tick < EX_TICKS && !s_stop; tick++) {
+    for (i32 tick = 0; tick < EX_TICKS && !s_stop; tick++) {
         d64 now = hostNow() - t0;
 
         // The promotion schedule stands in for a downloader. One verb each.
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
 
             if (changed.core)
                 printf("[setup] core moved -> contract %llu\n",
-                       (unsigned long long) Hot_getCoreContract(stack));
+                       (u64) Hot_getCoreContract(stack));
 
             if (!appRunning) {
                 printf("[setup] app idle: %s\n", Hot_getStackError(stack));

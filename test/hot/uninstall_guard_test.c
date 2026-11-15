@@ -33,7 +33,7 @@
 #include "manifest.h"
 #include "test_support.h"
 
-static int s_failures = 0;
+static i32 s_failures = 0;
 
 #define CHECK(cond, ...)                                                        \
     do {                                                                        \
@@ -78,7 +78,7 @@ static bool rmtree(const char *path) {
         if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
             continue;
         char child[512];
-        int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
@@ -117,7 +117,7 @@ static bool path_exists(const char *path) {
     return stat(path, &st) == 0;
 }
 
-int main() {
+i32 main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("uninstall_guard_test: SKIP (POSIX path contract)\n");
     return B_TEST_SKIP;

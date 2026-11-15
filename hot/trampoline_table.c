@@ -17,7 +17,7 @@
  * CLASS: HotTrampolineTable (hot/hot_trampoline.c)
  * STRUCT FIELDS (Mirroring hot/hot_trampoline.h), in declaration order:
  *   HotTrampoline *rows : owned growable backing; no escaped row pointers.
- *   u32 capacity : allocated row extent, bounded by int index representation.
+ *   u32 capacity : allocated row extent, bounded by i32 index representation.
  *   _Atomic u32 count : initialized rows, published after row initialization.
  *   u64 refusals : allocation/extent refusal count; reset by free/constructor.
  * SLOT RECORD: HotTrampoline
@@ -27,8 +27,8 @@
  * FUNCTION REGISTRY:
  *   HotTrampolineTable_0() : empty constructor; chooser/zero in header.
  *   bool HotTrampolineTable_reserve(self, capacity) : fallible cold growth.
- *   int HotTrampolineTable_register(self, name) : exact identity, duplicate reuse.
- *   int HotTrampolineTable_find(self, name) : cold lookup, -1 absent/null.
+ *   i32 HotTrampolineTable_register(self, name) : exact identity, duplicate reuse.
+ *   i32 HotTrampolineTable_find(self, name) : cold lookup, -1 absent/null.
  *   fn HotTrampolineTable_set(self, idx, ptr) : atomic replace and fallback.
  *   any HotTrampolineTable_get(self, idx) : target/fallback, nullptr invalid.
  *   u64 HotTrampolineTable_exhaustionCount(const self) : epoch refusals.
@@ -83,25 +83,25 @@ bool HotTrampolineTable_reserve(HotTrampolineTable *self, u32 capacity) {
     return true;
 }
 
-int HotTrampolineTable_find(HotTrampolineTable *self, const char *name) {
+i32 HotTrampolineTable_find(HotTrampolineTable *self, const char *name) {
     if (self == nullptr || name == nullptr)
         return -1;
     u32 count = atomic_load(&(*self).count);
     for (u32 i = 0; i < count; ++i) {
         HotTrampoline *row = &(*self).rows[i];
         if (strcmp((*row).name, name) == 0)
-            return (int) i;
+            return (i32) i;
     }
     return -1;
 }
 
-int HotTrampolineTable_register(HotTrampolineTable *self, const char *name) {
+i32 HotTrampolineTable_register(HotTrampolineTable *self, const char *name) {
     if (self == nullptr || name == nullptr || *name == '\0' ||
         strnlen(name, HOT_MANIFEST_MAX_NAME) == HOT_MANIFEST_MAX_NAME) {
         THROW("trampoline register: invalid symbol identity");
         return -1;
     }
-    int found = HotTrampolineTable_find(self, name);
+    i32 found = HotTrampolineTable_find(self, name);
     if (found >= 0)
         return found;
     u32 count = atomic_load(&(*self).count);
@@ -112,10 +112,10 @@ int HotTrampolineTable_register(HotTrampolineTable *self, const char *name) {
     atomic_init(&(*row).ptr, nullptr);
     atomic_init(&(*row).fallback_ptr, nullptr);
     atomic_store(&(*self).count, count + 1);
-    return (int) count;
+    return (i32) count;
 }
 
-fn HotTrampolineTable_set(HotTrampolineTable *self, int idx, any ptr) {
+fn HotTrampolineTable_set(HotTrampolineTable *self, i32 idx, any ptr) {
     if (self == nullptr || idx < 0 || (u32) idx >= atomic_load(&(*self).count))
         return;
     HotTrampoline *row = &(*self).rows[idx];
@@ -125,7 +125,7 @@ fn HotTrampolineTable_set(HotTrampolineTable *self, int idx, any ptr) {
     atomic_store(&(*row).ptr, ptr);
 }
 
-any HotTrampolineTable_get(HotTrampolineTable *self, int idx) {
+any HotTrampolineTable_get(HotTrampolineTable *self, i32 idx) {
     if (self == nullptr || idx < 0 || (u32) idx >= atomic_load(&(*self).count))
         return nullptr;
     HotTrampoline *row = &(*self).rows[idx];
@@ -147,13 +147,13 @@ u64 HotTrampolineTable_exhaustionCount(const HotTrampolineTable *self) {
 static bool project(const HotTrampolineTable *self, bool structure, char *dest, bytes cap, bool *outTruncated) {
     if (outTruncated != nullptr)
         *outTruncated = false;
-    int n = -1;
+    i32 n = -1;
     if (dest != nullptr && cap > 0) {
         if (self == nullptr)
             n = snprintf(dest, cap, "nullptr");
         else if (structure)
             n = snprintf(dest, cap, "HotTrampolineTable{rows=%p,capacity=%u,count=%u,refusals=%llu}",
-                         (any) (*self).rows, (*self).capacity, atomic_load(&(*self).count), (unsigned long long) (*self).refusals);
+                         (any) (*self).rows, (*self).capacity, atomic_load(&(*self).count), (u64) (*self).refusals);
         else
             n = snprintf(dest, cap, "symbols=%u capacity=%u", atomic_load(&(*self).count), (*self).capacity);
     }

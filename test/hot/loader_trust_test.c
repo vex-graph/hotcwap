@@ -30,7 +30,7 @@
 #include "manifest.h"
 #include "test_support.h"
 
-static int s_failures = 0;
+static i32 s_failures = 0;
 
 #define CHECK(cond, ...)                                                        \
     do {                                                                        \
@@ -75,7 +75,7 @@ static bool rmtree(const char *path) {
         if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
             continue;
         char child[512];
-        int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
@@ -97,7 +97,7 @@ static bool rmtree(const char *path) {
     return true;
 }
 
-int main() {
+i32 main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("loader_trust_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;
@@ -158,7 +158,7 @@ int main() {
     u32 loaded = 0;
     HotResult r = HOT_OK;
     bool saw_error = false;
-    for (int i = 0; i < 10 && !saw_error; i++) {
+    for (i32 i = 0; i < 10 && !saw_error; i++) {
         struct timespec d = { 0, 20 * 1000 * 1000 };
         nanosleep(&d, 0);
         r = Hot_poll(hot, &loaded);
@@ -184,7 +184,7 @@ int main() {
     CHECK(hot2 != nullptr, "Hot_init() #2 returned NULL");
     if (hot2) {
         saw_error = false;
-        for (int i = 0; i < 10 && !saw_error; i++) {
+        for (i32 i = 0; i < 10 && !saw_error; i++) {
             struct timespec d = { 0, 20 * 1000 * 1000 };
             nanosleep(&d, 0);
             r = Hot_poll(hot2, &loaded);

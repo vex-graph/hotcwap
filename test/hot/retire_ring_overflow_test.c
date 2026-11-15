@@ -32,7 +32,7 @@
 
 #define SWAP_COUNT 20
 
-static int s_failures = 0;
+static i32 s_failures = 0;
 
 #define CHECK(cond, ...)                                                        \
     do {                                                                        \
@@ -102,7 +102,7 @@ static bool rmtree(const char *path) {
         if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
             continue;
         char child[512];
-        int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
@@ -127,13 +127,13 @@ static bool rmtree(const char *path) {
 /** Places the test module under the manifest-selected payload name. */
 static bool stage_module(const char *loadBase) {
     char dir[512];
-    int dl = snprintf(dir, sizeof(dir), "%s/payload", loadBase);
+    i32 dl = snprintf(dir, sizeof(dir), "%s/payload", loadBase);
     if (dl < 0 || (bytes) dl >= sizeof(dir))
         return false;
     if (!mkdir_p(dir))
         return false;
     char dst[512];
-    int n = snprintf(dst, sizeof(dst), "%s/hot_behavior.so", dir);
+    i32 n = snprintf(dst, sizeof(dst), "%s/hot_behavior.so", dir);
     if (n < 0 || (bytes) n >= sizeof(dst))
         return false;
     return copy_file(HOT_BEHAVIOR_MODULE, dst);
@@ -141,7 +141,7 @@ static bool stage_module(const char *loadBase) {
 
 /** Waits within the test deadline for the requested module generation. */
 static bool wait_for_generation(HotModule *hot, u32 target) {
-    for (int i = 0; i < 100; i++) {
+    for (i32 i = 0; i < 100; i++) {
         struct timespec d = { 0, 20 * 1000 * 1000 };
         nanosleep(&d, 0);
         u32 loaded = 0;
@@ -154,7 +154,7 @@ static bool wait_for_generation(HotModule *hot, u32 target) {
     return false;
 }
 
-int main() {
+i32 main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("retire_ring_overflow_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;
@@ -210,14 +210,14 @@ int main() {
         Hot_poll(hot, &loaded);   // kick the snapshot worker
         if (!wait_for_generation(hot, g)) {
             CHECK(false, "swap #%u never landed (generation %llu)", g,
-                  (unsigned long long) Hot_getGeneration(hot));
+                  (u64) Hot_getGeneration(hot));
             all_landed = false;
             break;
         }
     }
     CHECK(all_landed, "not every swap landed");
     CHECK(Hot_getGeneration(hot) == SWAP_COUNT, "final generation %llu != %u",
-          (unsigned long long) Hot_getGeneration(hot), SWAP_COUNT);
+          (u64) Hot_getGeneration(hot), SWAP_COUNT);
     HotFn pulse = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulse != nullptr, "hot_behavior_pulse lost after the overflow run");
     if (pulse) {

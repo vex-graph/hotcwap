@@ -34,7 +34,7 @@
 #define HOT_BEHAVIOR_MODULE "hot_behavior.so"
 #endif
 
-static int s_failures = 0;
+static i32 s_failures = 0;
 
 #define CHECK(cond, ...)                                                        \
     do {                                                                        \
@@ -104,7 +104,7 @@ static bool rmtree(const char *path) {
         if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
             continue;
         char child[512];
-        int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
@@ -129,13 +129,13 @@ static bool rmtree(const char *path) {
 // Copy the built module into loadBase/payload/<stem>.so — one section per stem.
 static bool stage_module(const char *loadBase, const char *stem) {
     char dir[512];
-    int dl = snprintf(dir, sizeof(dir), "%s/payload", loadBase);
+    i32 dl = snprintf(dir, sizeof(dir), "%s/payload", loadBase);
     if (dl < 0 || (bytes) dl >= sizeof(dir))
         return false;
     if (!mkdir_p(dir))
         return false;
     char dst[512];
-    int n = snprintf(dst, sizeof(dst), "%s/%s.so", dir, stem);
+    i32 n = snprintf(dst, sizeof(dst), "%s/%s.so", dir, stem);
     if (n < 0 || (bytes) n >= sizeof(dst))
         return false;
     return copy_file(HOT_BEHAVIOR_MODULE, dst);
@@ -143,7 +143,7 @@ static bool stage_module(const char *loadBase, const char *stem) {
 
 /** Waits within the test deadline for the requested loader generation. */
 static bool wait_for_generation(HotModule *hot, u32 target) {
-    for (int i = 0; i < 80; i++) {
+    for (i32 i = 0; i < 80; i++) {
         struct timespec d = { 0, 20 * 1000 * 1000 };
         nanosleep(&d, 0);
         u32 loaded = 0;
@@ -156,7 +156,7 @@ static bool wait_for_generation(HotModule *hot, u32 target) {
     return false;
 }
 
-int main() {
+i32 main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("two_dylib_swap_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;
@@ -216,7 +216,7 @@ int main() {
     r = Hot_poll(hot, &loaded);   // kick the snapshot worker
     CHECK(r == HOT_OK, "swap-kick Hot_poll failed: %s", Hot_getLastError(hot));
     CHECK(wait_for_generation(hot, 2u), "swap never landed (generation %llu)",
-          (unsigned long long) Hot_getGeneration(hot));
+          (u64) Hot_getGeneration(hot));
     loaded = 0;
     HotFn pulse = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulse != nullptr, "hot_behavior_pulse unresolved after the two-dylib swap");

@@ -60,24 +60,24 @@ static bool state_dir(char *dest, bytes cap) {
         base = getenv("USERPROFILE");
     if (base == nullptr || *base == '\0')
         return false;
-    int n = snprintf(dest, cap, "%s/vexgraph/ledger", base);
+    i32 n = snprintf(dest, cap, "%s/vexgraph/ledger", base);
     return n > 0 && (bytes) n < cap;
 #elif defined(VEX_PLATFORM_APPLE)
     const char *home = getenv("HOME");
     if (home == nullptr || *home == '\0')
         return false;
-    int n = snprintf(dest, cap, "%s/Library/Application Support/vexgraph/ledger", home);
+    i32 n = snprintf(dest, cap, "%s/Library/Application Support/vexgraph/ledger", home);
     return n > 0 && (bytes) n < cap;
 #else
     const char *xdg = getenv("XDG_STATE_HOME");
     if (xdg != nullptr && *xdg != '\0') {
-        int n = snprintf(dest, cap, "%s/vexgraph/ledger", xdg);
+        i32 n = snprintf(dest, cap, "%s/vexgraph/ledger", xdg);
         return n > 0 && (bytes) n < cap;
     }
     const char *home = getenv("HOME");
     if (home == nullptr || *home == '\0')
         return false;
-    int n = snprintf(dest, cap, "%s/.local/state/vexgraph/ledger", home);
+    i32 n = snprintf(dest, cap, "%s/.local/state/vexgraph/ledger", home);
     return n > 0 && (bytes) n < cap;
 #endif
 }
@@ -104,7 +104,7 @@ static bool mkdir_p(const char *path) {
 static fn sanitize(const char *src, char *dest, bytes cap) {
     bytes k = 0;
     for (const char *p = src; *p != '\0' && k + 1 < cap; p++)
-        dest[k++] = (isalnum((unsigned char) *p) || *p == '_') ? *p : '_';
+        dest[k++] = (isalnum((u8) *p) || *p == '_') ? *p : '_';
     dest[k] = '\0';
 }
 
@@ -115,7 +115,7 @@ static bool record_path(char *dest, bytes cap, const char *org, const char *app)
     char o[64], a[64];
     sanitize(org, o, sizeof(o));
     sanitize(app, a, sizeof(a));
-    int n = snprintf(dest, cap, "%s/%s_%s.rec", dir, o, a);
+    i32 n = snprintf(dest, cap, "%s/%s_%s.rec", dir, o, a);
     return n > 0 && (bytes) n < cap;
 }
 
@@ -182,7 +182,7 @@ static bool write_state(Ledger *ledger, const char *state, const char *version) 
         return false;
     const char *ver = version ? version : "";
     char record[192];
-    int n = snprintf(record, sizeof(record), "%s\n%s\n", state, ver);
+    i32 n = snprintf(record, sizeof(record), "%s\n%s\n", state, ver);
     if (n < 0 || (bytes) n >= sizeof(record))
         return false;
     FILE *f = fopen((*ledger).path, "wb");

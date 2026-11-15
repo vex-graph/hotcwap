@@ -59,7 +59,7 @@ static i32 value(HotModule *hot, const char *name) {
     return ((i32 (*)()) symbol)();
 }
 
-int main(int argc, char **argv) {
+i32 main(i32 argc, char **argv) {
     if (argc != 2) {
         fputs("SKIP: real dylib fixtures need a fixture driver that is not in the tree\n", stderr);
         return 77;

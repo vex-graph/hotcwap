@@ -16,10 +16,10 @@
 #define PREFIX "one"
 #endif
 const u64 Hot_cold_abi = ABI;
-static int state;
-static int version() { return VERSION; }
-static int get() { return state; }
-static fn set(int value) { state = value; }
+static i32 state;
+static i32 version() { return VERSION; }
+static i32 get() { return state; }
+static fn set(i32 value) { state = value; }
 bool Hot_save(any dest, bytes cap, bytes *length) {
     if (!dest || !length || cap < sizeof(state))
         return false;

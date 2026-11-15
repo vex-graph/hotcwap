@@ -53,7 +53,7 @@ bool HotStaging_copy(const char *src, const char *dst) {
         fclose(in);
         return false;
     }
-    unsigned char buf[8192];
+    u8 buf[8192];
     bytes n = 0;
     bool ok = true;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
@@ -110,7 +110,7 @@ bool HotStagedSection_isImage(const char *name) {
 HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
                                  const char *name, HotStagedSection *out) {
     char path[HOT_PATH_LEN];
-    int plen = snprintf(path, sizeof(path), "%s/%s", libDir, name);
+    i32 plen = snprintf(path, sizeof(path), "%s/%s", libDir, name);
     if (plen < 0 || (bytes) plen >= sizeof(path)) {
         snprintf((*hot).last_error, sizeof((*hot).last_error),
                  "Section path '%s/%s' truncated", libDir, name);

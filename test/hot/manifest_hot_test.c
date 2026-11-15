@@ -41,7 +41,7 @@
 
 #define TEST_GENERATION_TARGET 2u
 
-static int s_failures = 0;
+static i32 s_failures = 0;
 
 #define CHECK(cond, ...)                                                        \
     do {                                                                        \
@@ -111,7 +111,7 @@ static bool rmtree(const char *path) {
         if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
             continue;
         char child[512];
-        int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
@@ -137,7 +137,7 @@ static bool rmtree(const char *path) {
 // contract scans .dylib/.so entries under bin/current/<library>.
 static bool stage_payload(const char *loadBase) {
     char path[512];
-    int plen = snprintf(path, sizeof(path), "%s/payload", loadBase);
+    i32 plen = snprintf(path, sizeof(path), "%s/payload", loadBase);
     if (plen < 0 || (bytes) plen >= sizeof(path))
         return false;
     if (!mkdir_p(path))
@@ -146,7 +146,7 @@ static bool stage_payload(const char *loadBase) {
     const char *base = strrchr(moduleFile, '/');
     base = base ? base + 1 : moduleFile;
     char dst[512];
-    int dlen = snprintf(dst, sizeof(dst), "%s/%s", path, base);
+    i32 dlen = snprintf(dst, sizeof(dst), "%s/%s", path, base);
     if (dlen < 0 || (bytes) dlen >= sizeof(dst))
         return false;
     return copy_file(moduleFile, dst);
@@ -154,7 +154,7 @@ static bool stage_payload(const char *loadBase) {
 
 /** Polls the module until its generation reaches the target or times out. */
 static bool wait_for_generation(HotModule *hot, u32 target) {
-    for (int i = 0; i < 60; i++) {
+    for (i32 i = 0; i < 60; i++) {
         struct timespec d = { 0, 20 * 1000 * 1000 };
         nanosleep(&d, 0);
         u32 loaded = 0;
@@ -167,7 +167,7 @@ static bool wait_for_generation(HotModule *hot, u32 target) {
     return false;
 }
 
-int main() {
+i32 main() {
 #if defined(VEX_PLATFORM_WINDOWS)
     printf("manifest_hot_test: SKIP (POSIX dlopen contract)\n");
     return B_TEST_SKIP;
@@ -203,13 +203,13 @@ int main() {
     // --- 3. Stage + reflect (seeds generation 1) ----------------------------
     CHECK(stage_payload(loadBase), "stage_payload failed");
     char payloadDir[512];
-    int pd = snprintf(payloadDir, sizeof(payloadDir), "%s/payload", loadBase);
+    i32 pd = snprintf(payloadDir, sizeof(payloadDir), "%s/payload", loadBase);
     CHECK(pd >= 0 && (bytes) pd < sizeof(payloadDir), "payloadDir truncation");
     CHECK(MANIFEST_REFLECT("hot_behavior", payloadDir),
           "MANIFEST_REFLECT() failed");
     CHECK(MANIFEST_GENERATION("hot_behavior") == 1u,
           "expected generation 1 after reflect, got %llu",
-          (unsigned long long) MANIFEST_GENERATION("hot_behavior"));
+          (u64) MANIFEST_GENERATION("hot_behavior"));
 
     // --- 4. First load (0 → 1): dlopen + trampoline adopt ------------------
     HotModule *hot = Hot_init("hot_behavior");
@@ -238,7 +238,7 @@ int main() {
     CHECK(MANIFEST_PROMOTE(), "MANIFEST_PROMOTE() failed");
     CHECK(MANIFEST_GENERATION("hot_behavior") == 2u,
           "expected generation 2 after promote, got %llu",
-          (unsigned long long) MANIFEST_GENERATION("hot_behavior"));
+          (u64) MANIFEST_GENERATION("hot_behavior"));
 
     // --- 6. Two-phase live swap (snapshot off-thread, then swap) ------------
     r = Hot_poll(hot, &loaded);   // kicks the snapshot worker; loaded stays 0
@@ -246,7 +246,7 @@ int main() {
     CHECK(loaded == 0u, "kick poll must not swap yet (loaded=%u)", loaded);
     CHECK(wait_for_generation(hot, TEST_GENERATION_TARGET),
           "swap never landed (generation %llu)",
-          (unsigned long long) Hot_getGeneration(hot));
+          (u64) Hot_getGeneration(hot));
     CHECK(Hot_getGeneration(hot) == 2u, "post-swap generation != 2");
     printf("  live swap landed: generation 1 → 2\n");
 

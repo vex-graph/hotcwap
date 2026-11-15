@@ -409,7 +409,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
                 alignas(16) u8 migratedBuf[HOT_SAVE_SLOT_CAP];
                 bytes migratedLen = 0;
                 char oldGenStr[32];
-                snprintf(oldGenStr, sizeof(oldGenStr), "%llu.0.0", (unsigned long long) (*hot).generation);
+                snprintf(oldGenStr, sizeof(oldGenStr), "%llu.0.0", (u64) (*hot).generation);
                 if ((migrate(oldGenStr, (*slot).buf, (*slot).len, migratedBuf, sizeof(migratedBuf), &migratedLen) ||
                      (!(*hot).coldCount && migrate("1.0.0", (*slot).buf, (*slot).len, migratedBuf, sizeof(migratedBuf), &migratedLen))) &&
                     migratedLen > 0 && migratedLen <= sizeof(migratedBuf)) {
@@ -423,10 +423,10 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
             (*hot).saveCount = 0;
             snprintf((*hot).last_error, sizeof((*hot).last_error),
                      "Restore rejected by %s (%zu Bytes) — generation %llu stays live",
-                     (*slot).name, (*slot).len, (unsigned long long) (*hot).generation);
+                     (*slot).name, (*slot).len, (u64) (*hot).generation);
             fprintf(stderr, "[hot] ROLLBACK: %s rejected restored state (%zu Bytes) — "
                             "keeping generation %llu live, generation NOT advanced\n",
-                    (*slot).name, (*slot).len, (unsigned long long) (*hot).generation);
+                    (*slot).name, (*slot).len, (u64) (*hot).generation);
             return HOT_ERROR_RESTORE_FAILED;
         }
     }
@@ -458,7 +458,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
 
         const struct { const char *name; any fn; } *entries = (*s).trampolines;
         for (u32 k = 0; k < (*s).trampolineCount; k++) {
-            int tidx = HotTrampolineTable_find(table, entries[k].name);
+            i32 tidx = HotTrampolineTable_find(table, entries[k].name);
             if (tidx < 0)
                 tidx = HotTrampolineTable_register(table, entries[k].name);
             if (tidx >= 0)
@@ -466,7 +466,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
         }
         loaded++;
         fprintf(stderr, "[hot] reloaded %s (generation %llu)\n",
-                (*mod).name, (unsigned long long) newGen);
+                (*mod).name, (u64) newGen);
     }
     (*hot).saveCount = 0;
 
@@ -483,7 +483,7 @@ static HotResult perform_swap(HotModule *hot, const char *libDir, u32 *outLoaded
     if (!(*hot).coldCount)
         return perform_verified_swap(hot, libDir, outLoaded);
     char privateDir[HOT_PATH_LEN];
-    int n = snprintf(privateDir, sizeof(privateDir), "%s/cache/load/%s/release-%u",
+    i32 n = snprintf(privateDir, sizeof(privateDir), "%s/cache/load/%s/release-%u",
                      MANIFEST_ROOT(), (*hot).library, HotStaging_nextSerial());
     if (n < 0 || (bytes) n >= sizeof(privateDir) || !HotStaging_mkdirs(privateDir))
         return HOT_ERROR_FILE_NOT_FOUND;
@@ -493,7 +493,7 @@ static HotResult perform_swap(HotModule *hot, const char *libDir, u32 *outLoaded
         const HotSectionDigest *item = &(*hot).coldDigests[i];
         char source[HOT_PATH_LEN], dest[HOT_PATH_LEN];
         n = snprintf(source, sizeof(source), "%s/%s", libDir, (*item).filename);
-        int d = snprintf(dest, sizeof(dest), "%s/%s", privateDir, (*item).filename);
+        i32 d = snprintf(dest, sizeof(dest), "%s/%s", privateDir, (*item).filename);
         if (n < 0 || (bytes) n >= sizeof(source) || d < 0 || (bytes) d >= sizeof(dest))
             break;
         copied = i + 1; // cleanup also owns any partial failed copy
@@ -544,7 +544,7 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
             continue;
         const HotSectionDigest *digest = HotStaging_coldDigest(hot, name);
         char path[HOT_PATH_LEN];
-        int n = snprintf(path, sizeof(path), "%s/%s", payloadDir, name);
+        i32 n = snprintf(path, sizeof(path), "%s/%s", payloadDir, name);
         struct stat info;
         bytes len = strlen(name);
         bool dylib = (len > 6 && strcmp(name + len - 6, ".dylib") == 0) ||
@@ -639,7 +639,7 @@ resolve:
     if (result != HOT_OK)
         (*hot).module_count = originalModuleCount;
     if (result != HOT_OK)
-        THROW("cold update rejected: result %d; running generation %llu retained", result, (unsigned long long) (*hot).generation);
+        THROW("cold update rejected: result %d; running generation %llu retained", result, (u64) (*hot).generation);
     return result;
 }
 
@@ -758,7 +758,7 @@ HotFn Hot_getSymbol(HotModule *hot, const char *name) {
         return nullptr;
 
     HotTrampolineTable *table = &(*hot).trampolines;
-    int tidx = HotTrampolineTable_find(table, name);
+    i32 tidx = HotTrampolineTable_find(table, name);
     if (tidx < 0)
         return nullptr;
 

@@ -41,15 +41,15 @@ bool HotTrampolineTable_toString(const HotTrampolineTable *self, char *dest, byt
 bool HotTrampolineTable_toStringStruct(const HotTrampolineTable *self, char *dest, bytes cap, bool *outTruncated);
 
 // Register a row for a function. Returns the row index.
-int HotTrampolineTable_register(HotTrampolineTable *self, const char *name);
+i32 HotTrampolineTable_register(HotTrampolineTable *self, const char *name);
 
 // Current function pointer, falling back to the prior generation on mid-swap NULL.
-any HotTrampolineTable_get(HotTrampolineTable *self, int idx);
+any HotTrampolineTable_get(HotTrampolineTable *self, i32 idx);
 
 // Atomically swap a row's target, stashing the old pointer as fallback.
-fn HotTrampolineTable_set(HotTrampolineTable *self, int idx, any ptr);
+fn HotTrampolineTable_set(HotTrampolineTable *self, i32 idx, any ptr);
 
 // Find a row by name. Returns -1 if not found.
-int HotTrampolineTable_find(HotTrampolineTable *self, const char *name);
+i32 HotTrampolineTable_find(HotTrampolineTable *self, const char *name);
 
 #endif

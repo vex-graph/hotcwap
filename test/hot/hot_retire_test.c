@@ -19,7 +19,7 @@
 
 #include "hot/retire_ring.h"
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -30,8 +30,8 @@ static int g_failures = 0;
     } while (0)
 
 /** Counts occupied entries retained in the retirement ring. */
-static int parkedCount(const HotRetireRing *ring) {
-    int n = 0;
+static i32 parkedCount(const HotRetireRing *ring) {
+    i32 n = 0;
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
         const HotRetiredHandle *slot = &(*ring).slots[i];
         if ((*slot).handle)
@@ -40,7 +40,7 @@ static int parkedCount(const HotRetireRing *ring) {
     return n;
 }
 
-int main() {
+i32 main() {
     // NULL-self safety: every entry point is a no-op.
     HotRetireRing_retire(nullptr, (any) 0x1);
     HotRetireRing_advance(nullptr);

@@ -27,7 +27,7 @@
 
 #include "manifest.h"
 
-static int s_failures = 0;
+static i32 s_failures = 0;
 
 #define CHECK(cond, ...)                                                        \
     do {                                                                        \
@@ -72,7 +72,7 @@ static bool rmtree(const char *path) {
         if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
             continue;
         char child[512];
-        int clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;
@@ -118,7 +118,7 @@ static bool file_matches(const char *path, const char *data) {
     return strcmp(buf, data) == 0;
 }
 
-int main() {
+i32 main() {
     char scratch[] = "/tmp/vexgraph_manifest_adv_XXXXXX";
     char *base = mkdtemp(scratch);
     if (!base) {
@@ -138,7 +138,7 @@ int main() {
     //
     // Both run in a forked child: a successful MANIFEST() mounts process-wide,
     // and the parent must still be unmounted for the sections below.
-    for (int wantTildeName = 1; wantTildeName >= 0; wantTildeName--) {
+    for (i32 wantTildeName = 1; wantTildeName >= 0; wantTildeName--) {
         pid_t pid = fork();
         CHECK(pid >= 0, "fork failed");
         if (pid == 0) {
@@ -147,7 +147,7 @@ int main() {
                 : MANIFEST(MANIFEST_APP_DATA, "vexgraph", "~");
             _exit(mounted ? 0 : 1);
         }
-        int status = 0;
+        i32 status = 0;
         CHECK(waitpid(pid, &status, 0) == pid, "waitpid failed");
         bool mounted = WIFEXITED(status) && WEXITSTATUS(status) == 0;
         if (wantTildeName)
@@ -193,7 +193,7 @@ int main() {
     char okfile[512];
     snprintf(okfile, sizeof(okfile), "%s/vexgraph/adv_ok/manifest.json", base);
     struct stat st;
-    CHECK(stat(okfile, &st) == 0 && S_ISREG((unsigned int) st.st_mode),
+    CHECK(stat(okfile, &st) == 0 && S_ISREG((u32) st.st_mode),
           "missing manifest.json was not created on mount");
     CHECK(MANIFEST_ROOT() != nullptr, "MANIFEST_ROOT() null after a good mount");
     printf("  C. missing manifest.json created on mount\n");
@@ -205,7 +205,7 @@ int main() {
           "MANIFEST_LIBRARY() rejected a valid key");
     CHECK(MANIFEST_GENERATION("adv_lib") == 0u,
           "a never-installed library read generation %llu",
-          (unsigned long long) MANIFEST_GENERATION("adv_lib"));
+          (u64) MANIFEST_GENERATION("adv_lib"));
     printf("  D. library key gate held; fresh library reads generation 0\n");
 
     unsetenv("VEX_MANIFEST");

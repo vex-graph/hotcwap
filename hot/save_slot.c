@@ -67,7 +67,7 @@ any HotSaveSlot_workerMain(any arg) {
             deadline.tv_sec++;
             deadline.tv_nsec -= 1000000000L;
         }
-        int rc = pthread_cond_timedwait(&(*hot).saveCond, &(*hot).saveLock, &deadline);
+        i32 rc = pthread_cond_timedwait(&(*hot).saveCond, &(*hot).saveLock, &deadline);
         HotSavePhase phase = (HotSavePhase) atomic_load_explicit(&(*hot).savePhase, memory_order_relaxed);
         if (phase == HOT_SAVE_STOPPED)
             break;
@@ -119,7 +119,7 @@ bool HotSaveSlot_begin(HotModule *hot) {
         // Hot_poll resolves REQUESTED/CAPTURED/STOPPED before calling begin, so
         // this is unreachable in the loader; report it rather than queue a
         // second handshake behind a word that is already occupied.
-        THROW("hot save: begin with phase %u in flight", (unsigned) expected);
+        THROW("hot save: begin with phase %u in flight", (u32) expected);
     }
     pthread_mutex_unlock(&(*hot).saveLock);
     return requested;

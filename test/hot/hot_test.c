@@ -16,7 +16,7 @@
 #include "hot.h"
 #include "manifest.h"
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -26,8 +26,8 @@ static int g_failures = 0;
         }                                                                  \
     } while (0)
 
-int main() {
-    // Hot_init rejects NULL, empty, and over-long library keys.
+i32 main() {
+    // Hot_init rejects NULL, empty, and over-i64 library keys.
     CHECK(Hot_init(nullptr) == nullptr);
     CHECK(Hot_init("") == nullptr);
     char big[HOT_MANIFEST_MAX_NAME + 8];

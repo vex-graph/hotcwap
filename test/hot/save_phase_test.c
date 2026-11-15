@@ -22,7 +22,7 @@
 #include "hot/module.h"
 #include "hot/internal.h"
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -44,13 +44,13 @@ bool Hot_save(any buf, bytes cap, bytes *out) {
     return true;
 }
 
-static long elapsedMs(const struct timespec *from, const struct timespec *to) {
+static i64 elapsedMs(const struct timespec *from, const struct timespec *to) {
     return (to->tv_sec - from->tv_sec) * 1000L
          + (to->tv_nsec - from->tv_nsec) / 1000000L;
 }
 
 /** Bounded wait for a phase (the Bounded Wait Law); false on timeout. */
-static bool waitPhase(HotModule *hot, HotSavePhase want, long timeoutMs) {
+static bool waitPhase(HotModule *hot, HotSavePhase want, i64 timeoutMs) {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
     for (;;) {
@@ -90,7 +90,7 @@ static fn moduleRelease(HotModule *hot) {
     pthread_mutex_destroy(&(*hot).saveLock);
 }
 
-int main() {
+i32 main() {
     any image = dlopen(nullptr, RTLD_NOW);
     CHECK(image != nullptr);
     if (image == nullptr) {

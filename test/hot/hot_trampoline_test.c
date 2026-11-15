@@ -8,7 +8,7 @@
 //   - get returns the current target, and falls back rather than returning
 //     NULL when only the prior generation is set (the mid-swap cover);
 //     out-of-range indices are NULL.
-//   - an over-long name is clamped with a NUL terminator.
+//   - an over-i64 name is clamped with a NUL terminator.
 //
 // Headless, deterministic, no dylibs.
 
@@ -18,7 +18,7 @@
 
 #include "hot/trampoline_table.h"
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -28,15 +28,15 @@ static int g_failures = 0;
         }                                                                  \
     } while (0)
 
-static int g_targetA = 1;
-static int g_targetB = 2;
+static i32 g_targetA = 1;
+static i32 g_targetB = 2;
 
-int main() {
+i32 main() {
     static HotTrampolineTable table; // zero-initialized (count 0)
 
     // register: in-order indices; NULL self / NULL name rejected.
-    int a = HotTrampolineTable_register(&table, "alpha");
-    int b = HotTrampolineTable_register(&table, "beta");
+    i32 a = HotTrampolineTable_register(&table, "alpha");
+    i32 b = HotTrampolineTable_register(&table, "beta");
     CHECK(a == 0);
     CHECK(b == 1);
     CHECK(HotTrampolineTable_register(&table, nullptr) == -1);
@@ -73,11 +73,11 @@ int main() {
     HotTrampolineTable_set(&table, a, nullptr);
     CHECK(HotTrampolineTable_get(&table, a) == pb);
 
-    // over-long name is clamped to HOT_MANIFEST_MAX_NAME-1 + NUL.
+    // over-i64 name is clamped to HOT_MANIFEST_MAX_NAME-1 + NUL.
     char big[HOT_MANIFEST_MAX_NAME + 40];
     memset(big, 'z', sizeof big - 1);
     big[sizeof big - 1] = '\0';
-    int c = HotTrampolineTable_register(&table, big);
+    i32 c = HotTrampolineTable_register(&table, big);
     CHECK(c == -1);
     char clamped[HOT_MANIFEST_MAX_NAME];
     memset(clamped, 'z', HOT_MANIFEST_MAX_NAME - 1);
@@ -85,7 +85,7 @@ int main() {
     CHECK(HotTrampolineTable_find(&table, clamped) == -1);
     CHECK(HotTrampolineTable_register(&table, "alpha") == a);
     CHECK(atomic_load(&table.count) == 2);
-    for (int i = 2; i < 4096; ++i) {
+    for (i32 i = 2; i < 4096; ++i) {
         char name[64];
         snprintf(name, sizeof name, "symbol_%d", i);
         CHECK(HotTrampolineTable_register(&table, name) == i);
@@ -94,7 +94,7 @@ int main() {
     CHECK(atomic_load(&table.count) == 4096);
     CHECK(HotTrampolineTable_find(&table, "symbol_4095") == 4095);
     CHECK(HotTrampolineTable_get(&table, 4095) == pa);
-    for (int i = 0; i < 10000; ++i) {
+    for (i32 i = 0; i < 10000; ++i) {
         HotTrampolineTable_set(&table, a, i % 2 ? pa : pb);
         CHECK(HotTrampolineTable_get(&table, a) == (i % 2 ? pa : pb));
     }

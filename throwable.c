@@ -154,7 +154,7 @@ fn Throwable_runTeardown() {
 _Noreturn fn Throwable_throw(ExceptionCategory category,
                               const char *site,
                               const char *file,
-                              int line,
+                              i32 line,
                               const char *msg,
                               const char *details_fmt,
                               ...) {
@@ -183,7 +183,7 @@ bool Throwable_tryCatch(bool condition,
                         ExceptionCategory category,
                         const char *site,
                         const char *file,
-                        int line,
+                        i32 line,
                         const char *msg,
                         const char *details_fmt,
                         ...) {

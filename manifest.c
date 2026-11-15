@@ -201,7 +201,7 @@ static bool valid_name(const char *name) {
     if (strcmp(name, "~") == 0)
         return false;
     for (bytes i = 0; i < n; i++) {
-        unsigned char c = (unsigned char) name[i];
+        u8 c = (u8) name[i];
         if (!(isalnum(c) || c == '-' || c == '_' || c == '.' || c == ' ' || c == '~'))
             return false;
     }
@@ -213,7 +213,7 @@ static bool dir_exists(const char *path) {
         return false;
     struct stat st;
     memset(&st, 0, sizeof(st));
-    return stat(path, &st) == 0 && S_ISDIR((unsigned int) st.st_mode);
+    return stat(path, &st) == 0 && S_ISDIR((u32) st.st_mode);
 }
 
 static bool file_exists(const char *path) {
@@ -221,7 +221,7 @@ static bool file_exists(const char *path) {
         return false;
     struct stat st;
     memset(&st, 0, sizeof(st));
-    return stat(path, &st) == 0 && S_ISREG((unsigned int) st.st_mode);
+    return stat(path, &st) == 0 && S_ISREG((u32) st.st_mode);
 }
 
 // Extract the first d64-quoted string value for a JSON key, tolerant of
@@ -301,7 +301,7 @@ static u64 generation_read(const char *path) {
     bytes n = fread(buf, 1, sizeof(buf) - 1, f);
     fclose(f);
     u64 v = 0;
-    for (bytes i = 0; i < n && isdigit((unsigned char) buf[i]); i++)
+    for (bytes i = 0; i < n && isdigit((u8) buf[i]); i++)
         v = v * 10 + (u64) (buf[i] - '0');
     return v;
 }
@@ -317,7 +317,7 @@ static bool generation_write(const char *path, u64 value) {
     FILE *f = fopen(tmp, "wb");
     if (!f)
         return false;
-    bool written = fprintf(f, "%llu\n", (unsigned long long) value) > 0;
+    bool written = fprintf(f, "%llu\n", (u64) value) > 0;
     if (fclose(f) != 0)
         written = false;
     if (!written) {
@@ -335,9 +335,9 @@ static bool dir_mkdir(const char *path) {
     if (dir_exists(path))
         return true;
 #if defined(VEX_PLATFORM_WINDOWS)
-    int rc = _mkdir(path);
+    i32 rc = _mkdir(path);
 #else
-    int rc = mkdir(path, 0755);
+    i32 rc = mkdir(path, 0755);
 #endif
     if (rc != 0 && errno != EEXIST)
         return false;
@@ -373,7 +373,7 @@ static bool read_file(const char *path, char *buf, bytes cap, bytes *lenOut) {
     if (fseek(f, 0, SEEK_END) != 0) {
         ok = false;
     } else {
-        long sz = ftell(f);
+        i64 sz = ftell(f);
         if (sz < 0 || (bytes) sz > cap - 1) {
             ok = false;
         } else if (fseek(f, 0, SEEK_SET) != 0) {
@@ -472,7 +472,7 @@ static bool copy_file(const char *src, const char *dst) {
     return ok;
 }
 
-static bool copy_tree(const char *srcDir, const char *dstDir, int depth) {
+static bool copy_tree(const char *srcDir, const char *dstDir, i32 depth) {
     if (depth > 8)
         return false;
     DIR *dir = opendir(srcDir);
@@ -495,7 +495,7 @@ static bool copy_tree(const char *srcDir, const char *dstDir, int depth) {
             ok = false;
             break;
         }
-        if (S_ISDIR((unsigned int) st.st_mode)) {
+        if (S_ISDIR((u32) st.st_mode)) {
             if (!dir_mkdir(dst)) {
                 ok = false;
                 break;
@@ -504,7 +504,7 @@ static bool copy_tree(const char *srcDir, const char *dstDir, int depth) {
                 ok = false;
                 break;
             }
-        } else if (S_ISREG((unsigned int) st.st_mode)) {
+        } else if (S_ISREG((u32) st.st_mode)) {
             snprintf(tmp, sizeof(tmp), "%s/.%s.stage", dstDir, name);
             if (!copy_file(src, tmp)) {
                 ok = false;
@@ -543,7 +543,7 @@ static fn remove_ladder_dir(const char *dir) {
         snprintf(entry, sizeof(entry), "%s/%s", tomb, name);
         struct stat st;
         memset(&st, 0, sizeof(st));
-        if (lstat(entry, &st) == 0 && S_ISDIR((unsigned int) st.st_mode))
+        if (lstat(entry, &st) == 0 && S_ISDIR((u32) st.st_mode))
             remove_ladder_dir(entry);
         else
             UNLINK(entry);
@@ -681,7 +681,7 @@ static bool json_skip_string(JsonIn *self) {
     return false;
 }
 
-static bool json_skip(JsonIn *self, int depth) {
+static bool json_skip(JsonIn *self, i32 depth) {
     char c;
     if (!json_peek(self, &c))
         return false;
@@ -821,7 +821,7 @@ static bool catalog_write_json() {
         return false;
     char json[MANIFEST_JSON_CAP];
     bytes used = 0;
-    int n;
+    i32 n;
 
     n = snprintf(json, sizeof(json),
                  "{\n"
@@ -1133,7 +1133,7 @@ bool MANIFEST_LIBRARY(const char *first, ...) {
                 break;
             }
         }
-        for (int slot = MANIFEST_LADDER_BACKWARD; slot <= MANIFEST_LADDER_NEW; slot++) {
+        for (i32 slot = MANIFEST_LADDER_BACKWARD; slot <= MANIFEST_LADDER_NEW; slot++) {
             if (!ManifestPath_libraryDir((ManifestLadder) slot, name, path,
                                          sizeof(path), true)) {
                 ok = false;
@@ -1223,7 +1223,7 @@ static bool slot_readme_append(ManifestLadder slot, const char *library,
                "- generation: %llu\n"
                "- sections: %u\n"
                "- at: %s\n\n",
-            library, phase, (unsigned long long) generation,
+            library, phase, (u64) generation,
             lib != nullptr ? (*lib).sectionCount : 0u, stamp);
     fclose(f);
     return true;
@@ -1381,7 +1381,7 @@ bool MANIFEST_PROMOTE_LIBRARY(const char *library) {
         !ManifestPath_libraryDir(MANIFEST_LADDER_PREVIOUS, library, previous, sizeof(previous), false) ||
         !ManifestPath_generationFile(library, stamp, sizeof(stamp)))
         return false;
-    int n = snprintf(backup, sizeof(backup), "%s.cold-backup", previous);
+    i32 n = snprintf(backup, sizeof(backup), "%s.cold-backup", previous);
     if (n < 0 || (bytes) n >= sizeof(backup) || dir_exists(backup) || !stage_has_content(next))
         return false;
     u64 generation = generation_read(stamp);

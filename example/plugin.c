@@ -27,7 +27,7 @@ fn Plugin_frame(d64 nowSeconds) {
     s_plugin.ticks += 1;
     if ((s_plugin.ticks % 40u) == 1u)
         printf("[plugin] tick %llu  t=%.2f\n",
-               (unsigned long long) s_plugin.ticks, nowSeconds);
+               (u64) s_plugin.ticks, nowSeconds);
 }
 
 bool Hot_save(any buf, bytes cap, bytes *outLen) {
