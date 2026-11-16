@@ -74,23 +74,40 @@
  * ============================================================================
  */
 
+;;GETTER
+static inline HotRetiredHandle *HotRetireRing_slotAtMut(HotRetireRing *self, bytes i) { return &(*self).slots[i]; }
+;;GETTER
+static inline u32 HotRetireRing_generation(const HotRetireRing *self) { return (*self).generation; }
+;;SETTER
+static inline fn HotRetireRing_setGeneration(HotRetireRing *self, u32 gen) { (*self).generation = gen; }
+;;GETTER
+static inline any HotRetiredHandle_handle(const HotRetiredHandle *slot) { return (*slot).handle; }
+;;SETTER
+static inline fn HotRetiredHandle_setHandle(HotRetiredHandle *slot, any handle) { (*slot).handle = handle; }
+;;GETTER
+static inline u32 HotRetiredHandle_generation(const HotRetiredHandle *slot) { return (*slot).generation; }
+;;SETTER
+static inline fn HotRetiredHandle_setGeneration(HotRetiredHandle *slot, u32 gen) { (*slot).generation = gen; }
+
 // CORE FUNCTIONS (PUBLIC & PRIVATE)
 /** Adds a loaded handle to the retire ring so delayed callers can finish. */
 fn HotRetireRing_retire(HotRetireRing *self, any handle) {
     if (!self || !handle) return;
 
+    u32 currentGen = HotRetireRing_generation(self);
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
-        HotRetiredHandle *slot = &(*self).slots[i];
-        if ((*slot).handle && ((*self).generation - (*slot).generation >= HOT_RETIRED_GENERATIONS)) {
-            dlclose((*slot).handle);
-            (*slot).handle = nullptr;
+        HotRetiredHandle *slot = HotRetireRing_slotAtMut(self, i);
+        any slotHandle = HotRetiredHandle_handle(slot);
+        if (slotHandle && (currentGen - HotRetiredHandle_generation(slot) >= HOT_RETIRED_GENERATIONS)) {
+            dlclose(slotHandle);
+            HotRetiredHandle_setHandle(slot, nullptr);
         }
     }
 
     bytes free_idx = HOT_RETIRED_MAX;
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
-        HotRetiredHandle *slot = &(*self).slots[i];
-        if (!(*slot).handle) {
+        HotRetiredHandle *slot = HotRetireRing_slotAtMut(self, i);
+        if (!HotRetiredHandle_handle(slot)) {
             free_idx = i;
             break;
         }
@@ -100,31 +117,34 @@ fn HotRetireRing_retire(HotRetireRing *self, any handle) {
         bytes oldest_idx = 0;
         u32 oldest_gen = UINT32_MAX;
         for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
-            HotRetiredHandle *slot = &(*self).slots[i];
-            if ((*slot).generation < oldest_gen) {
-                oldest_gen = (*slot).generation;
+            HotRetiredHandle *slot = HotRetireRing_slotAtMut(self, i);
+            u32 slotGen = HotRetiredHandle_generation(slot);
+            if (slotGen < oldest_gen) {
+                oldest_gen = slotGen;
                 oldest_idx = i;
             }
         }
-        HotRetiredHandle *victim = &(*self).slots[oldest_idx];
-        dlclose((*victim).handle);
+        HotRetiredHandle *victim = HotRetireRing_slotAtMut(self, oldest_idx);
+        dlclose(HotRetiredHandle_handle(victim));
         free_idx = oldest_idx;
     }
 
-    HotRetiredHandle *dest = &(*self).slots[free_idx];
-    (*dest).handle = handle;
-    (*dest).generation = (*self).generation;
+    HotRetiredHandle *dest = HotRetireRing_slotAtMut(self, free_idx);
+    HotRetiredHandle_setHandle(dest, handle);
+    HotRetiredHandle_setGeneration(dest, currentGen);
 }
 
 /** Advances the grace period and closes handles whose callers have quiesced. */
 fn HotRetireRing_advance(HotRetireRing *self) {
     if (!self) return;
-    (*self).generation++;
+    u32 currentGen = HotRetireRing_generation(self) + 1;
+    HotRetireRing_setGeneration(self, currentGen);
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
-        HotRetiredHandle *slot = &(*self).slots[i];
-        if ((*slot).handle && ((*self).generation - (*slot).generation >= HOT_RETIRED_GENERATIONS)) {
-            dlclose((*slot).handle);
-            (*slot).handle = nullptr;
+        HotRetiredHandle *slot = HotRetireRing_slotAtMut(self, i);
+        any slotHandle = HotRetiredHandle_handle(slot);
+        if (slotHandle && (currentGen - HotRetiredHandle_generation(slot) >= HOT_RETIRED_GENERATIONS)) {
+            dlclose(slotHandle);
+            HotRetiredHandle_setHandle(slot, nullptr);
         }
     }
 }
@@ -133,10 +153,11 @@ fn HotRetireRing_advance(HotRetireRing *self) {
 fn HotRetireRing_drainAll(HotRetireRing *self) {
     if (!self) return;
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
-        HotRetiredHandle *slot = &(*self).slots[i];
-        if ((*slot).handle) {
-            dlclose((*slot).handle);
-            (*slot).handle = nullptr;
+        HotRetiredHandle *slot = HotRetireRing_slotAtMut(self, i);
+        any slotHandle = HotRetiredHandle_handle(slot);
+        if (slotHandle) {
+            dlclose(slotHandle);
+            HotRetiredHandle_setHandle(slot, nullptr);
         }
     }
 }

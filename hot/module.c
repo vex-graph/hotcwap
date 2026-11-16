@@ -187,6 +187,99 @@
 #include "hot/internal.h"
 #include "hot/staged_section.h"
 
+;;GETTER
+static inline const char *Dirent_d_name(const struct dirent *ent) { return (*ent).d_name; }
+;;GETTER
+static inline const char *HotModule_library(const HotModule *hot) { return (*hot).library; }
+;;GETTER
+static inline char *HotModule_libraryMut(HotModule *hot) { return (*hot).library; }
+;;GETTER
+static inline u64 HotModule_generation(const HotModule *hot) { return (*hot).generation; }
+;;SETTER
+static inline fn HotModule_setGeneration(HotModule *hot, u64 gen) { (*hot).generation = gen; }
+;;GETTER
+static inline HotModuleInternal *HotModule_moduleAtMut(HotModule *hot, u32 i) { return &(*hot).modules[i]; }
+;;GETTER
+static inline u32 HotModule_moduleCount(const HotModule *hot) { return (*hot).module_count; }
+;;SETTER
+static inline fn HotModule_setModuleCount(HotModule *hot, u32 count) { (*hot).module_count = count; }
+;;GETTER
+static inline char *HotModule_lastErrorMut(HotModule *hot) { return (*hot).last_error; }
+;;GETTER
+static inline HotTrampolineTable *HotModule_trampolinesMut(HotModule *hot) { return &(*hot).trampolines; }
+;;GETTER
+static inline HotRetireRing *HotModule_retireRingMut(HotModule *hot) { return &(*hot).retireRing; }
+;;GETTER
+static inline pthread_t *HotModule_saveThreadMut(HotModule *hot) { return &(*hot).saveThread; }
+;;GETTER
+static inline pthread_mutex_t *HotModule_saveLockMut(HotModule *hot) { return &(*hot).saveLock; }
+;;GETTER
+static inline pthread_cond_t *HotModule_saveCondMut(HotModule *hot) { return &(*hot).saveCond; }
+;;GETTER
+static inline HotSaveSlot *HotModule_saveSlotAtMut(HotModule *hot, bytes i) { return &(*hot).saveSlots[i]; }
+;;GETTER
+static inline bytes HotModule_saveCount(const HotModule *hot) { return (*hot).saveCount; }
+;;SETTER
+static inline fn HotModule_setSaveCount(HotModule *hot, bytes count) { (*hot).saveCount = count; }
+;;SETTER
+static inline fn HotModule_setColdDigests(HotModule *hot, const HotSectionDigest *d) { (*hot).coldDigests = d; }
+;;GETTER
+static inline const HotSectionDigest *HotModule_coldDigestAt(const HotModule *hot, bytes i) {
+    return &(*hot).coldDigests[i];
+}
+;;GETTER
+static inline bytes HotModule_coldCount(const HotModule *hot) { return (*hot).coldCount; }
+;;SETTER
+static inline fn HotModule_setColdCount(HotModule *hot, bytes count) { (*hot).coldCount = count; }
+;;GETTER
+static inline bool HotModule_recoveryRequired(const HotModule *hot) { return (*hot).recoveryRequired; }
+;;SETTER
+static inline fn HotModule_setRecoveryRequired(HotModule *hot, bool req) { (*hot).recoveryRequired = req; }
+;;GETTER
+static inline const char *HotModuleInternal_name(const HotModuleInternal *mod) { return (*mod).name; }
+;;GETTER
+static inline const char *HotModuleInternal_path(const HotModuleInternal *mod) { return (*mod).path; }
+;;GETTER
+static inline char *HotModuleInternal_pathMut(HotModuleInternal *mod) { return (*mod).path; }
+;;GETTER
+static inline any HotModuleInternal_handle(const HotModuleInternal *mod) { return (*mod).handle; }
+;;SETTER
+static inline fn HotModuleInternal_setHandle(HotModuleInternal *mod, any h) { (*mod).handle = h; }
+;;GETTER
+static inline bool HotModuleInternal_loaded(const HotModuleInternal *mod) { return (*mod).loaded; }
+;;SETTER
+static inline fn HotModuleInternal_setLoaded(HotModuleInternal *mod, bool l) { (*mod).loaded = l; }
+;;GETTER
+static inline const char *HotSaveSlot_name(const HotSaveSlot *slot) { return (*slot).name; }
+;;GETTER
+static inline char *HotSaveSlot_nameMut(HotSaveSlot *slot) { return (*slot).name; }
+;;GETTER
+static inline u8 *HotSaveSlot_bufMut(HotSaveSlot *slot) { return (*slot).buf; }
+;;GETTER
+static inline bytes HotSaveSlot_len(const HotSaveSlot *slot) { return (*slot).len; }
+;;SETTER
+static inline fn HotSaveSlot_setLen(HotSaveSlot *slot, bytes len) { (*slot).len = len; }
+;;GETTER
+static inline HotModuleInternal *HotStagedSection_mod(const HotStagedSection *s) { return (*s).mod; }
+;;GETTER
+static inline const char *HotStagedSection_path(const HotStagedSection *s) { return (*s).path; }
+;;GETTER
+static inline any HotStagedSection_handle(const HotStagedSection *s) { return (*s).handle; }
+;;GETTER
+static inline u32 HotTrampolineTable_countLoad(const HotTrampolineTable *t) { return atomic_load(&(*t).count); }
+;;GETTER
+static inline HotTrampoline *HotTrampolineTable_rowAtMut(const HotTrampolineTable *t, u32 i) {
+    return &(*t).rows[i];
+}
+;;GETTER
+static inline const char *HotTrampoline_name(const HotTrampoline *r) { return (*r).name; }
+;;GETTER
+static inline fn HotTrampoline_clearFallback(HotTrampoline *r) { atomic_store(&(*r).fallback_ptr, nullptr); }
+;;GETTER
+static inline const char *HotSectionDigest_filename(const HotSectionDigest *d) { return (*d).filename; }
+;;GETTER
+static inline const u8 *HotSectionDigest_sha256(const HotSectionDigest *d) { return (*d).sha256; }
+
 // CONSTRUCTORS — HotModule owns the module slots below; row mechanics live
 // in hot_trampoline.c, generational close in hot_retire.c.
 
@@ -205,15 +298,16 @@ HotModule *Hot_init(const char *library) {
     if (!hot)
         return nullptr;
 
-    strncpy((*hot).library, library, HOT_MANIFEST_MAX_NAME - 1);
-    (*hot).library[HOT_MANIFEST_MAX_NAME - 1] = '\0';
+    char *lib = HotModule_libraryMut(hot);
+    strncpy(lib, library, HOT_MANIFEST_MAX_NAME - 1);
+    lib[HOT_MANIFEST_MAX_NAME - 1] = '\0';
 
-    pthread_mutex_init(&(*hot).saveLock, nullptr);
-    pthread_cond_init(&(*hot).saveCond, nullptr);
+    pthread_mutex_init(HotModule_saveLockMut(hot), nullptr);
+    pthread_cond_init(HotModule_saveCondMut(hot), nullptr);
     // calloc left savePhase at HOT_SAVE_IDLE (0); the worker publishes from there.
-    if (pthread_create(&(*hot).saveThread, nullptr, HotSaveSlot_workerMain, hot) != 0) {
-        pthread_mutex_destroy(&(*hot).saveLock);
-        pthread_cond_destroy(&(*hot).saveCond);
+    if (pthread_create(HotModule_saveThreadMut(hot), nullptr, HotSaveSlot_workerMain, hot) != 0) {
+        pthread_mutex_destroy(HotModule_saveLockMut(hot));
+        pthread_cond_destroy(HotModule_saveCondMut(hot));
         free(hot);
         return nullptr;
     }
@@ -228,26 +322,28 @@ fn Hot_shutdown(HotModule *hot) {
         return;
 
     HotSaveSlot_workerShutdown(hot);
-    pthread_mutex_destroy(&(*hot).saveLock);
-    pthread_cond_destroy(&(*hot).saveCond);
+    pthread_mutex_destroy(HotModule_saveLockMut(hot));
+    pthread_cond_destroy(HotModule_saveCondMut(hot));
 
-    for (u32 i = 0; i < (*hot).module_count; i++) {
-        HotModuleInternal *mod = &(*hot).modules[i];
-        if ((*mod).handle) {
+    u32 modCount = HotModule_moduleCount(hot);
+    for (u32 i = 0; i < modCount; i++) {
+        HotModuleInternal *mod = HotModule_moduleAtMut(hot, i);
+        any handle = HotModuleInternal_handle(mod);
+        if (handle) {
             typedef fn (*ShutdownFn)();
-            ShutdownFn shutdown = dlsym((*mod).handle, "Hot_shutdown_module");
+            ShutdownFn shutdown = dlsym(handle, "Hot_shutdown_module");
             if (shutdown)
                 shutdown();
-            dlclose((*mod).handle);
-            (*mod).handle = nullptr;
-            (*mod).loaded = false;
+            dlclose(handle);
+            HotModuleInternal_setHandle(mod, nullptr);
+            HotModuleInternal_setLoaded(mod, false);
         }
     }
 
     // Drain retired handle ring
-    HotRetireRing_drainAll(&(*hot).retireRing);
+    HotRetireRing_drainAll(HotModule_retireRingMut(hot));
 
-    HotTrampolineTable_free(&(*hot).trampolines);
+    HotTrampolineTable_free(HotModule_trampolinesMut(hot));
 
     free(hot);
 }
@@ -263,13 +359,13 @@ fn Hot_shutdown(HotModule *hot) {
 // and self-heals once the payload is fixed.
 /** Stages and validates every section, restores saved state, then commits the generation. */
 static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *outLoaded) {
-    HotTrampolineTable *table = &(*hot).trampolines;
-    HotRetireRing *ring = &(*hot).retireRing;
+    HotTrampolineTable *table = HotModule_trampolinesMut(hot);
+    HotRetireRing *ring = HotModule_retireRingMut(hot);
     u32 loaded = 0;
 
     DIR *dir = opendir(libDir);
     if (!dir) {
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "Cannot open manifest library dir: %s", libDir);
         return HOT_ERROR_FILE_NOT_FOUND;
     }
@@ -284,21 +380,21 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
         // readdir storage dies at closedir; diagnostics on rejection must own
         // their filename before closing the iterator.
         char name[HOT_PATH_LEN];
-        snprintf(name, sizeof(name), "%s", (*ent).d_name);
+        snprintf(name, sizeof(name), "%s", Dirent_d_name(ent));
         if (!HotStagedSection_isImage(name))
             continue;
-        if (!MANIFEST_ALLOWS((*hot).library, name)) {
+        if (!MANIFEST_ALLOWS(HotModule_library(hot), name)) {
             closedir(dir);
             for (u32 i = 0; i < stagedCount; ++i)
                 dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error), "undeclared section: %s", name);
+            snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error), "undeclared section: %s", name);
             return HOT_ERROR_ABI_MISMATCH;
         }
         if (stagedCount >= HOT_MAX_MODULES) {
             closedir(dir);
             for (u32 i = 0; i < stagedCount; i++)
                 dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error),
+            snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                      "Too many sections (limit %d) in %s", HOT_MAX_MODULES, libDir);
             return HOT_ERROR_OUT_OF_MEMORY;
         }
@@ -323,7 +419,7 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
             dlclose(staged[stagedCount].handle);
             for (u32 i = 0; i < stagedCount; i++)
                 dlclose(staged[i].handle);
-            snprintf((*hot).last_error, sizeof((*hot).last_error),
+            snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                      "duplicate section identity: %s", name);
             return HOT_ERROR_ABI_MISMATCH;
         }
@@ -332,7 +428,8 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
     }
     closedir(dir);
 
-    if ((*hot).coldCount) {
+    bytes coldCount = HotModule_coldCount(hot);
+    if (coldCount) {
         // Duplicate public identities make dispatch order-dependent; reject the
         // complete candidate before any restore or target publication.
         for (u32 i = 0; i < stagedCount; ++i) {
@@ -354,31 +451,33 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
     }
 
     if (stagedCount == 0) {
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "No loadable sections in %s", libDir);
         return HOT_ERROR_FILE_NOT_FOUND;
     }
 
-    u64 newGen = MANIFEST_GENERATION((*hot).library);
+    u64 newGen = MANIFEST_GENERATION(HotModule_library(hot));
 
     // Cold updates cannot strand an old export in a handle we will unload.
     // Removal is an ABI change requiring a resident host restart.
-    if ((*hot).coldCount) {
-        u32 oldCount = atomic_load(&(*table).count);
+    if (coldCount) {
+        u32 oldCount = HotTrampolineTable_countLoad(table);
         for (u32 r = 0; r < oldCount; ++r) {
-            HotTrampoline *row = &(*table).rows[r];
+            HotTrampoline *row = HotTrampolineTable_rowAtMut(table, r);
+            const char *rname = HotTrampoline_name(row);
             bool present = false;
             for (u32 i = 0; i < stagedCount; ++i) {
                 const struct { const char *name; any fn; } *exports = staged[i].trampolines;
                 for (u32 k = 0; k < staged[i].trampolineCount; ++k) {
-                    if (strcmp((*row).name, exports[k].name) == 0)
+                    if (strcmp(rname, exports[k].name) == 0)
                         present = true;
                 }
             }
             if (!present) {
                 for (u32 i = 0; i < stagedCount; ++i)
                     dlclose(staged[i].handle);
-                snprintf((*hot).last_error, sizeof((*hot).last_error), "cold update removed export: %s", (*row).name);
+                snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
+                         "cold update removed export: %s", rname);
                 return HOT_ERROR_ABI_MISMATCH;
             }
         }
@@ -390,28 +489,33 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
     // closes, the old generation (code + trampolines + state) stays live, and
     // the generation does NOT advance — the next poll re-enters the handshake
     // and re-attempts once the payload is fixed.
-    for (bytes i = 0; i < (*hot).saveCount; i++) {
-        HotSaveSlot *slot = &(*hot).saveSlots[i];
+    bytes saveCount = HotModule_saveCount(hot);
+    u64 curGen = HotModule_generation(hot);
+    for (bytes i = 0; i < saveCount; i++) {
+        HotSaveSlot *slot = HotModule_saveSlotAtMut(hot, i);
+        const char *sname = HotSaveSlot_name(slot);
         HotStagedSection *match = nullptr;
         for (u32 k = 0; k < stagedCount; k++) {
-            if (strcmp((*staged[k].mod).name, (*slot).name) == 0)
+            if (strcmp(HotModuleInternal_name(staged[k].mod), sname) == 0)
                 match = &staged[k];
         }
         if (!match)
             continue; // section absent from the new set; its old slot stays mapped
         typedef bool (*RestoreFn)(const_any , bytes);
-        RestoreFn restore = (RestoreFn) dlsym((*match).handle, "Hot_restore");
-        bool restored = (restore && restore((*slot).buf, (*slot).len));
+        RestoreFn restore = (RestoreFn) dlsym(HotStagedSection_handle(match), "Hot_restore");
+        u8 *sbuf = HotSaveSlot_bufMut(slot);
+        bytes slen = HotSaveSlot_len(slot);
+        bool restored = (restore && restore(sbuf, slen));
         if (!restored && restore) {
             typedef bool (*MigrateFn)(const char *, const_any , bytes, any , bytes, bytes *);
-            MigrateFn migrate = (MigrateFn) dlsym((*match).handle, "Hot_migrate");
+            MigrateFn migrate = (MigrateFn) dlsym(HotStagedSection_handle(match), "Hot_migrate");
             if (migrate) {
                 alignas(16) u8 migratedBuf[HOT_SAVE_SLOT_CAP];
                 bytes migratedLen = 0;
                 char oldGenStr[32];
-                snprintf(oldGenStr, sizeof(oldGenStr), "%llu.0.0", (u64) (*hot).generation);
-                if ((migrate(oldGenStr, (*slot).buf, (*slot).len, migratedBuf, sizeof(migratedBuf), &migratedLen) ||
-                     (!(*hot).coldCount && migrate("1.0.0", (*slot).buf, (*slot).len, migratedBuf, sizeof(migratedBuf), &migratedLen))) &&
+                snprintf(oldGenStr, sizeof(oldGenStr), "%llu.0.0", (u64) curGen);
+                if ((migrate(oldGenStr, sbuf, slen, migratedBuf, sizeof(migratedBuf), &migratedLen) ||
+                     (!coldCount && migrate("1.0.0", sbuf, slen, migratedBuf, sizeof(migratedBuf), &migratedLen))) &&
                     migratedLen > 0 && migratedLen <= sizeof(migratedBuf)) {
                     restored = restore(migratedBuf, migratedLen);
                 }
@@ -420,13 +524,13 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
         if (!restored) {
             for (u32 k = 0; k < stagedCount; k++)
                 dlclose(staged[k].handle); // never adopted — safe to close directly
-            (*hot).saveCount = 0;
-            snprintf((*hot).last_error, sizeof((*hot).last_error),
+            HotModule_setSaveCount(hot, 0);
+            snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                      "Restore rejected by %s (%zu Bytes) — generation %llu stays live",
-                     (*slot).name, (*slot).len, (u64) (*hot).generation);
+                     sname, slen, (u64) curGen);
             fprintf(stderr, "[hot] ROLLBACK: %s rejected restored state (%zu Bytes) — "
                             "keeping generation %llu live, generation NOT advanced\n",
-                    (*slot).name, (*slot).len, (u64) (*hot).generation);
+                    sname, slen, (u64) curGen);
             return HOT_ERROR_RESTORE_FAILED;
         }
     }
@@ -434,13 +538,13 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
     // Reserve every candidate symbol before any target changes. The caller must
     // exclude table readers during cold backing growth; published targets alone
     // do not make relocation safe. Repeated updates reuse existing names.
-    u64 required = atomic_load(&(*table).count);
+    u64 required = HotTrampolineTable_countLoad(table);
     for (u32 i = 0; i < stagedCount; ++i)
         required += staged[i].trampolineCount;
     if (required > INT_MAX || !HotTrampolineTable_reserve(table, (u32) required)) {
         for (u32 i = 0; i < stagedCount; ++i)
             dlclose(staged[i].handle);
-        (*hot).saveCount = 0;
+        HotModule_setSaveCount(hot, 0);
         return HOT_ERROR_OUT_OF_MEMORY;
     }
 
@@ -448,16 +552,19 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
     // State already lives inside the fresh images (Phase B restored in place).
     for (u32 i = 0; i < stagedCount; i++) {
         HotStagedSection *s = &staged[i];
-        HotModuleInternal *mod = (*s).mod;
-        if ((*mod).handle)
-            HotRetireRing_retire(ring, (*mod).handle);
-        (*mod).handle = (*s).handle;
-        (*mod).loaded = true;
-        strncpy((*mod).path, (*s).path, HOT_PATH_LEN - 1);
-        (*mod).path[HOT_PATH_LEN - 1] = '\0';
+        HotModuleInternal *mod = HotStagedSection_mod(s);
+        any oldHandle = HotModuleInternal_handle(mod);
+        if (oldHandle)
+            HotRetireRing_retire(ring, oldHandle);
+        HotModuleInternal_setHandle(mod, HotStagedSection_handle(s));
+        HotModuleInternal_setLoaded(mod, true);
+        char *mpath = HotModuleInternal_pathMut(mod);
+        strncpy(mpath, HotStagedSection_path(s), HOT_PATH_LEN - 1);
+        mpath[HOT_PATH_LEN - 1] = '\0';
 
-        const struct { const char *name; any fn; } *entries = (*s).trampolines;
-        for (u32 k = 0; k < (*s).trampolineCount; k++) {
+        const struct { const char *name; any fn; } *entries = staged[i].trampolines;
+        u32 tcount = staged[i].trampolineCount;
+        for (u32 k = 0; k < tcount; k++) {
             i32 tidx = HotTrampolineTable_find(table, entries[k].name);
             if (tidx < 0)
                 tidx = HotTrampolineTable_register(table, entries[k].name);
@@ -466,11 +573,11 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
         }
         loaded++;
         fprintf(stderr, "[hot] reloaded %s (generation %llu)\n",
-                (*mod).name, (u64) newGen);
+                HotModuleInternal_name(mod), (u64) newGen);
     }
-    (*hot).saveCount = 0;
+    HotModule_setSaveCount(hot, 0);
 
-    (*hot).generation = newGen;
+    HotModule_setGeneration(hot, newGen);
 
     if (outLoaded)
         (*outLoaded) = loaded;
@@ -480,32 +587,34 @@ static HotResult perform_verified_swap(HotModule *hot, const char *libDir, u32 *
 // Cold release: copy and hash ALL private images before any dlopen constructor
 // executes. Stable trusted parents and external serialization remain mandatory.
 static HotResult perform_swap(HotModule *hot, const char *libDir, u32 *outLoaded) {
-    if (!(*hot).coldCount)
+    bytes coldCount = HotModule_coldCount(hot);
+    if (!coldCount)
         return perform_verified_swap(hot, libDir, outLoaded);
     char privateDir[HOT_PATH_LEN];
     i32 n = snprintf(privateDir, sizeof(privateDir), "%s/cache/load/%s/release-%u",
-                     MANIFEST_ROOT(), (*hot).library, HotStaging_nextSerial());
+                     MANIFEST_ROOT(), HotModule_library(hot), HotStaging_nextSerial());
     if (n < 0 || (bytes) n >= sizeof(privateDir) || !HotStaging_mkdirs(privateDir))
         return HOT_ERROR_FILE_NOT_FOUND;
     HotResult result = HOT_ERROR_ABI_MISMATCH;
     bytes copied = 0;
-    for (bytes i = 0; i < (*hot).coldCount; ++i) {
-        const HotSectionDigest *item = &(*hot).coldDigests[i];
+    for (bytes i = 0; i < coldCount; ++i) {
+        const HotSectionDigest *item = HotModule_coldDigestAt(hot, i);
+        const char *fname = HotSectionDigest_filename(item);
         char source[HOT_PATH_LEN], dest[HOT_PATH_LEN];
-        n = snprintf(source, sizeof(source), "%s/%s", libDir, (*item).filename);
-        i32 d = snprintf(dest, sizeof(dest), "%s/%s", privateDir, (*item).filename);
+        n = snprintf(source, sizeof(source), "%s/%s", libDir, fname);
+        i32 d = snprintf(dest, sizeof(dest), "%s/%s", privateDir, fname);
         if (n < 0 || (bytes) n >= sizeof(source) || d < 0 || (bytes) d >= sizeof(dest))
             break;
         copied = i + 1; // cleanup also owns any partial failed copy
-        if (!HotStaging_copy(source, dest) || !HotStaging_digestMatches(dest, (*item).sha256))
+        if (!HotStaging_copy(source, dest) || !HotStaging_digestMatches(dest, HotSectionDigest_sha256(item)))
             break;
-        if (i + 1 == (*hot).coldCount)
+        if (i + 1 == coldCount)
             result = perform_verified_swap(hot, privateDir, outLoaded);
     }
     for (bytes i = 0; i < copied; ++i) {
-        const HotSectionDigest *item = &(*hot).coldDigests[i];
+        const HotSectionDigest *item = HotModule_coldDigestAt(hot, i);
         char dest[HOT_PATH_LEN];
-        n = snprintf(dest, sizeof(dest), "%s/%s", privateDir, (*item).filename);
+        n = snprintf(dest, sizeof(dest), "%s/%s", privateDir, HotSectionDigest_filename(item));
         if (n >= 0 && (bytes) n < sizeof(dest))
             unlink(dest);
     }
@@ -517,29 +626,30 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
                          const HotSectionDigest *digests, bytes count, u32 *loadedCount) {
     if (loadedCount != nullptr)
         *loadedCount = 0;
-    if (hot != nullptr && (*hot).recoveryRequired) {
+    if (hot != nullptr && HotModule_recoveryRequired(hot)) {
         THROW("cold update: unresolved disk rollback requires host recovery");
         return HOT_ERROR_RECOVERY_REQUIRED;
     }
+    const char *lib = hot != nullptr ? HotModule_library(hot) : nullptr;
     if (hot == nullptr || payloadDir == nullptr || digests == nullptr || count == 0 ||
-        count > HOT_MAX_MODULES || count != MANIFEST_SECTION_COUNT((*hot).library) ||
+        count > HOT_MAX_MODULES || count != MANIFEST_SECTION_COUNT(lib) ||
         HotSaveSlot_phase(hot) != HOT_SAVE_IDLE) {
         THROW("cold update: invalid admission or a snapshot handshake is in flight");
         return HOT_ERROR_INIT_FAILED;
     }
     HotResult result = HOT_ERROR_ABI_MISMATCH;
-    u32 originalModuleCount = (*hot).module_count;
+    u32 originalModuleCount = HotModule_moduleCount(hot);
     DIR *dir = opendir(payloadDir);
     if (dir == nullptr) {
         THROW("cold update: cannot open payload");
         return HOT_ERROR_FILE_NOT_FOUND;
     }
-    (*hot).coldDigests = digests;
-    (*hot).coldCount = count;
+    HotModule_setColdDigests(hot, digests);
+    HotModule_setColdCount(hot, count);
     bytes found = 0;
     struct dirent *entry;
     while ((entry = readdir(dir)) != nullptr) {
-        const char *name = (*entry).d_name;
+        const char *name = Dirent_d_name(entry);
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
             continue;
         const HotSectionDigest *digest = HotStaging_coldDigest(hot, name);
@@ -549,9 +659,9 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
         bytes len = strlen(name);
         bool dylib = (len > 6 && strcmp(name + len - 6, ".dylib") == 0) ||
                      (len > 3 && strcmp(name + len - 3, ".so") == 0);
-        if (digest == nullptr || !dylib || !MANIFEST_ALLOWS((*hot).library, name) ||
+        if (digest == nullptr || !dylib || !MANIFEST_ALLOWS(lib, name) ||
             n < 0 || (bytes) n >= sizeof(path) || lstat(path, &info) != 0 ||
-            !S_ISREG(info.st_mode) || !HotStaging_digestMatches(path, (*digest).sha256))
+            !S_ISREG(info.st_mode) || !HotStaging_digestMatches(path, HotSectionDigest_sha256(digest)))
             break;
         ++found;
     }
@@ -560,86 +670,91 @@ HotResult Hot_updateCold(HotModule *hot, const char *payloadDir,
     // Duplicate descriptor names would otherwise disguise an incomplete set.
     for (bytes i = 0; complete && i < count; ++i) {
         const HotSectionDigest *item = &digests[i];
-        if ((*item).filename == nullptr || !MANIFEST_ALLOWS((*hot).library, (*item).filename)) {
+        const char *iname = HotSectionDigest_filename(item);
+        if (iname == nullptr || !MANIFEST_ALLOWS(lib, iname)) {
             complete = false;
             break;
         }
         for (bytes k = 0; k < i; ++k) {
             const HotSectionDigest *prior = &digests[k];
-            if (strcmp((*prior).filename, (*item).filename) == 0)
+            if (strcmp(HotSectionDigest_filename(prior), iname) == 0)
                 complete = false;
         }
     }
     // The first cold release must retain every previously loaded section.
-    for (u32 i = 0; complete && i < (*hot).module_count; ++i) {
-        HotModuleInternal *module = &(*hot).modules[i];
-        if (!(*module).loaded)
+    for (u32 i = 0; complete && i < originalModuleCount; ++i) {
+        HotModuleInternal *module = HotModule_moduleAtMut(hot, i);
+        if (!HotModuleInternal_loaded(module))
             continue;
-        const char *base = strrchr((*module).path, '/');
+        const char *base = strrchr(HotModuleInternal_path(module), '/');
         if (base == nullptr || HotStaging_coldDigest(hot, base + 1) == nullptr)
             complete = false;
     }
     if (!complete)
         goto resolve;
-    (*hot).saveCount = 0;
+    HotModule_setSaveCount(hot, 0);
     // Synchronous under caller exclusion: no worker reads concurrently with use.
-    for (u32 i = 0; i < (*hot).module_count; ++i) {
-        HotModuleInternal *module = &(*hot).modules[i];
-        if (!(*module).loaded)
+    for (u32 i = 0; i < originalModuleCount; ++i) {
+        HotModuleInternal *module = HotModule_moduleAtMut(hot, i);
+        if (!HotModuleInternal_loaded(module))
             continue;
         typedef bool (*SaveFn)(any , bytes, bytes *);
-        SaveFn save = (SaveFn) dlsym((*module).handle, "Hot_save");
+        SaveFn save = (SaveFn) dlsym(HotModuleInternal_handle(module), "Hot_save");
         if (save == nullptr)
             continue; // stateless module, or all state belongs to resident host
-        HotSaveSlot *slot = &(*hot).saveSlots[(*hot).saveCount];
+        bytes scount = HotModule_saveCount(hot);
+        HotSaveSlot *slot = HotModule_saveSlotAtMut(hot, scount);
         bytes length = 0;
-        if (!save((*slot).buf, sizeof((*slot).buf), &length) || length == 0 || length > sizeof((*slot).buf)) {
+        if (!save(HotSaveSlot_bufMut(slot), sizeof(((HotSaveSlot) {0}).buf), &length) ||
+            length == 0 || length > sizeof(((HotSaveSlot) {0}).buf)) {
             result = HOT_ERROR_RESTORE_FAILED;
             goto resolve;
         }
-        strcpy((*slot).name, (*module).name);
-        (*slot).len = length;
-        ++(*hot).saveCount;
+        strcpy(HotSaveSlot_nameMut(slot), HotModuleInternal_name(module));
+        HotSaveSlot_setLen(slot, length);
+        HotModule_setSaveCount(hot, scount + 1);
     }
-    if (!MANIFEST_UPDATE((*hot).library, payloadDir)) {
+    if (!MANIFEST_UPDATE(lib, payloadDir)) {
         result = HOT_ERROR_FILE_NOT_FOUND;
         goto resolve;
     }
-    u64 oldGeneration = MANIFEST_GENERATION((*hot).library);
-    if (!MANIFEST_PROMOTE_LIBRARY((*hot).library)) {
-        (*hot).recoveryRequired = MANIFEST_REQUIRES_RECOVERY();
-        result = (*hot).recoveryRequired ? HOT_ERROR_RECOVERY_REQUIRED : HOT_ERROR_INIT_FAILED;
+    u64 oldGeneration = MANIFEST_GENERATION(lib);
+    if (!MANIFEST_PROMOTE_LIBRARY(lib)) {
+        bool rec = MANIFEST_REQUIRES_RECOVERY();
+        HotModule_setRecoveryRequired(hot, rec);
+        result = rec ? HOT_ERROR_RECOVERY_REQUIRED : HOT_ERROR_INIT_FAILED;
         goto resolve;
     }
     char current[HOT_PATH_LEN];
-    if (!ManifestPath_libraryDir(MANIFEST_LADDER_CURRENT, (*hot).library, current, sizeof(current), false))
+    if (!ManifestPath_libraryDir(MANIFEST_LADDER_CURRENT, lib, current, sizeof(current), false))
         result = HOT_ERROR_FILE_NOT_FOUND;
     else
         result = perform_swap(hot, current, loadedCount);
-    if (result != HOT_OK && !MANIFEST_REVERT_LIBRARY((*hot).library, oldGeneration)) {
-        snprintf((*hot).last_error, sizeof((*hot).last_error), "cold update disk rollback failed; recovery required");
-        (*hot).recoveryRequired = true;
+    if (result != HOT_OK && !MANIFEST_REVERT_LIBRARY(lib, oldGeneration)) {
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
+                 "cold update disk rollback failed; recovery required");
+        HotModule_setRecoveryRequired(hot, true);
         result = HOT_ERROR_RECOVERY_REQUIRED;
     }
     if (result == HOT_OK) {
         // ALL callers excluded: old code has no active borrower at this boundary.
-        HotRetireRing_drainAll(&(*hot).retireRing);
+        HotRetireRing_drainAll(HotModule_retireRingMut(hot));
         // Cold publication needs no old-address fallback; those images are gone.
-        HotTrampolineTable *table = &(*hot).trampolines;
-        u32 rows = atomic_load(&(*table).count);
+        HotTrampolineTable *table = HotModule_trampolinesMut(hot);
+        u32 rows = HotTrampolineTable_countLoad(table);
         for (u32 i = 0; i < rows; ++i) {
-            HotTrampoline *row = &(*table).rows[i];
-            atomic_store(&(*row).fallback_ptr, nullptr);
+            HotTrampoline *row = HotTrampolineTable_rowAtMut(table, i);
+            HotTrampoline_clearFallback(row);
         }
     }
 resolve:
-    (*hot).coldDigests = nullptr;
-    (*hot).coldCount = 0;
-    (*hot).saveCount = 0;
+    HotModule_setColdDigests(hot, nullptr);
+    HotModule_setColdCount(hot, 0);
+    HotModule_setSaveCount(hot, 0);
     if (result != HOT_OK)
-        (*hot).module_count = originalModuleCount;
+        HotModule_setModuleCount(hot, originalModuleCount);
     if (result != HOT_OK)
-        THROW("cold update rejected: result %d; running generation %llu retained", result, (u64) (*hot).generation);
+        THROW("cold update rejected: result %d; running generation %llu retained", result, (u64) HotModule_generation(hot));
     return result;
 }
 
@@ -650,16 +765,17 @@ HotResult Hot_poll(HotModule *hot, u32 *loaded_count) {
     if (!hot)
         return HOT_ERROR_FILE_NOT_FOUND;
 
-    HotRetireRing_advance(&(*hot).retireRing);
+    HotRetireRing_advance(HotModule_retireRingMut(hot));
 
+    const char *lib = HotModule_library(hot);
     char libDir[HOT_PATH_LEN];
-    if (!ManifestPath_libraryDir(MANIFEST_LADDER_CURRENT, (*hot).library,
+    if (!ManifestPath_libraryDir(MANIFEST_LADDER_CURRENT, lib,
                                  libDir, sizeof(libDir), false)) {
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
-                 "manifest not mounted or unknown library '%s'", (*hot).library);
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
+                 "manifest not mounted or unknown library '%s'", lib);
         return HOT_ERROR_FILE_NOT_FOUND;
     }
-    u64 stamp = MANIFEST_GENERATION((*hot).library);
+    u64 stamp = MANIFEST_GENERATION(lib);
 
     // Complete an in-flight live swap once the off-thread snapshot landed.
     // The phase word is the whole handshake: REQUESTED waits, CAPTURED swaps,
@@ -673,15 +789,15 @@ HotResult Hot_poll(HotModule *hot, u32 *loaded_count) {
         return perform_swap(hot, libDir, loaded_count);
     }
     if (save == HOT_SAVE_STOPPED) {
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "poll after save worker stop");
         return HOT_ERROR_INIT_FAILED;
     }
 
-    if (stamp == (*hot).generation)
+    if (stamp == HotModule_generation(hot))
         return HOT_OK;
 
-    if ((*hot).module_count == 0) {
+    if (HotModule_moduleCount(hot) == 0) {
         // First load — nothing to preserve, swap straight through.
         return perform_swap(hot, libDir, loaded_count);
     }
@@ -699,10 +815,11 @@ fn Hot_shutdownModule(HotModule *hot, const char *module_name) {
     if (!hot || !module_name)
         return;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
-    if (!mod || !(*mod).loaded || !(*mod).handle)
+    any handle = mod ? HotModuleInternal_handle(mod) : nullptr;
+    if (!mod || !HotModuleInternal_loaded(mod) || !handle)
         return;
     typedef fn (*ShutdownFn)();
-    ShutdownFn shutdown = (ShutdownFn) dlsym((*mod).handle, "Hot_shutdown_module");
+    ShutdownFn shutdown = (ShutdownFn) dlsym(handle, "Hot_shutdown_module");
     if (shutdown)
         shutdown();
 }
@@ -712,10 +829,11 @@ bool Hot_saveModule(HotModule *hot, const char *module_name, any buf, bytes cap,
     if (!hot || !module_name || !buf || !outLen)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
-    if (!mod || !(*mod).loaded || !(*mod).handle)
+    any handle = mod ? HotModuleInternal_handle(mod) : nullptr;
+    if (!mod || !HotModuleInternal_loaded(mod) || !handle)
         return false;
     typedef bool (*SaveFn)(any , bytes, bytes *);
-    SaveFn save = (SaveFn) dlsym((*mod).handle, "Hot_save");
+    SaveFn save = (SaveFn) dlsym(handle, "Hot_save");
     if (!save)
         return false;
     return save(buf, cap, outLen);
@@ -726,10 +844,11 @@ bool Hot_restoreModule(HotModule *hot, const char *module_name, const_any buf, b
     if (!hot || !module_name || !buf)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
-    if (!mod || !(*mod).loaded || !(*mod).handle)
+    any handle = mod ? HotModuleInternal_handle(mod) : nullptr;
+    if (!mod || !HotModuleInternal_loaded(mod) || !handle)
         return false;
     typedef bool (*RestoreFn)(const_any , bytes);
-    RestoreFn restore = (RestoreFn) dlsym((*mod).handle, "Hot_restore");
+    RestoreFn restore = (RestoreFn) dlsym(handle, "Hot_restore");
     if (!restore)
         return false;
     return restore(buf, len);
@@ -741,10 +860,11 @@ bool Hot_migrateModule(HotModule *hot, const char *module_name, const char *oldV
     if (!hot || !module_name || !oldVersion || !oldBuf || !newBuf || !outLen)
         return false;
     HotModuleInternal *mod = HotModuleInternal_find(hot, module_name);
-    if (!mod || !(*mod).loaded || !(*mod).handle)
+    any handle = mod ? HotModuleInternal_handle(mod) : nullptr;
+    if (!mod || !HotModuleInternal_loaded(mod) || !handle)
         return false;
     typedef bool (*MigrateFn)(const char *, const_any , bytes, any , bytes, bytes *);
-    MigrateFn migrate = (MigrateFn) dlsym((*mod).handle, "Hot_migrate");
+    MigrateFn migrate = (MigrateFn) dlsym(handle, "Hot_migrate");
     if (!migrate)
         return false;
     return migrate(oldVersion, oldBuf, oldLen, newBuf, newCap, outLen);
@@ -757,7 +877,7 @@ HotFn Hot_getSymbol(HotModule *hot, const char *name) {
     if (!hot || !name)
         return nullptr;
 
-    HotTrampolineTable *table = &(*hot).trampolines;
+    HotTrampolineTable *table = HotModule_trampolinesMut(hot);
     i32 tidx = HotTrampolineTable_find(table, name);
     if (tidx < 0)
         return nullptr;
@@ -768,11 +888,11 @@ HotFn Hot_getSymbol(HotModule *hot, const char *name) {
 ;;GETTER
 /** Returns the last successfully committed manifest generation. */
 u64 Hot_getGeneration(const HotModule *hot) {
-    return hot ? (*hot).generation : 0;
+    return hot ? HotModule_generation(hot) : 0;
 }
 
 bool Hot_requiresRecovery(const HotModule *hot) {
-    return hot != nullptr && (*hot).recoveryRequired;
+    return hot != nullptr && HotModule_recoveryRequired(hot);
 }
 
 ;;GETTER
@@ -780,5 +900,5 @@ bool Hot_requiresRecovery(const HotModule *hot) {
 const char *Hot_getLastError(HotModule *hot) {
     if (!hot)
         return "NULL hot module";
-    return (*hot).last_error;
+    return HotModule_lastErrorMut(hot);
 }

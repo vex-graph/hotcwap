@@ -88,10 +88,41 @@ bool HotStaging_digestMatches(const char *path, const u8 expected[32]) {
     return ok && memcmp(actual, expected, sizeof(actual)) == 0;
 }
 
+;;GETTER
+static inline bytes HotModule_coldCount(const HotModule *hot) { return (*hot).coldCount; }
+;;GETTER
+static inline const HotSectionDigest *HotModule_coldDigestAt(const HotModule *hot, bytes i) {
+    return &(*hot).coldDigests[i];
+}
+;;GETTER
+static inline char *HotModule_lastErrorMut(HotModule *hot) { return (*hot).last_error; }
+;;GETTER
+static inline const char *HotModule_library(const HotModule *hot) { return (*hot).library; }
+;;GETTER
+static inline const char *HotSectionDigest_filename(const HotSectionDigest *d) { return (*d).filename; }
+;;GETTER
+static inline const u8 *HotSectionDigest_sha256(const HotSectionDigest *d) { return (*d).sha256; }
+;;SETTER
+static inline fn HotStagedSection_setMod(HotStagedSection *out, HotModuleInternal *mod) { (*out).mod = mod; }
+;;GETTER
+static inline char *HotStagedSection_pathMut(HotStagedSection *out) { return (*out).path; }
+;;SETTER
+static inline fn HotStagedSection_setHandle(HotStagedSection *out, any handle) { (*out).handle = handle; }
+;;GETTER
+static inline const_any HotStagedSection_trampolines(const HotStagedSection *out) { return (*out).trampolines; }
+;;SETTER
+static inline fn HotStagedSection_setTrampolines(HotStagedSection *out, const_any t) { (*out).trampolines = t; }
+;;GETTER
+static inline u32 HotStagedSection_trampolineCount(const HotStagedSection *out) { return (*out).trampolineCount; }
+;;GETTER
+static inline u32 *HotStagedSection_trampolineCountMut(HotStagedSection *out) { return &(*out).trampolineCount; }
+
 const HotSectionDigest *HotStaging_coldDigest(HotModule *hot, const char *name) {
-    for (bytes i = 0; i < (*hot).coldCount; ++i) {
-        const HotSectionDigest *digest = &(*hot).coldDigests[i];
-        if ((*digest).filename != nullptr && strcmp((*digest).filename, name) == 0)
+    bytes count = HotModule_coldCount(hot);
+    for (bytes i = 0; i < count; ++i) {
+        const HotSectionDigest *digest = HotModule_coldDigestAt(hot, i);
+        const char *fname = HotSectionDigest_filename(digest);
+        if (fname != nullptr && strcmp(fname, name) == 0)
             return digest;
     }
     return nullptr;
@@ -112,7 +143,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
     char path[HOT_PATH_LEN];
     i32 plen = snprintf(path, sizeof(path), "%s/%s", libDir, name);
     if (plen < 0 || (bytes) plen >= sizeof(path)) {
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "Section path '%s/%s' truncated", libDir, name);
         return HOT_ERROR_FILE_NOT_FOUND;
     }
@@ -123,27 +154,28 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
     // is a genuinely fresh image.
     char loadDir[HOT_PATH_LEN];
     char loadPath[HOT_PATH_LEN];
-    if ((*hot).coldCount) {
+    bytes coldCount = HotModule_coldCount(hot);
+    if (coldCount) {
         snprintf(loadDir, sizeof(loadDir), "%s", libDir);
         snprintf(loadPath, sizeof(loadPath), "%s", path);
     } else {
         snprintf(loadDir, sizeof(loadDir), "%s/cache/load/%s/%u",
-                 MANIFEST_ROOT(), (*hot).library, HotStaging_nextSerial());
+                 MANIFEST_ROOT(), HotModule_library(hot), HotStaging_nextSerial());
         snprintf(loadPath, sizeof(loadPath), "%s/%s", loadDir, name);
     }
-    if (!(*hot).coldCount && (!HotStaging_mkdirs(loadDir) || !HotStaging_copy(path, loadPath))) {
+    if (!coldCount && (!HotStaging_mkdirs(loadDir) || !HotStaging_copy(path, loadPath))) {
         unlink(loadPath);
         rmdir(loadDir);
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "cannot stage a unique load copy for %s", name);
         return HOT_ERROR_FILE_NOT_FOUND;
     }
 
     const HotSectionDigest *digest = HotStaging_coldDigest(hot, name);
-    if ((*hot).coldCount && (digest == nullptr || !HotStaging_digestMatches(loadPath, (*digest).sha256))) {
+    if (coldCount && (digest == nullptr || !HotStaging_digestMatches(loadPath, HotSectionDigest_sha256(digest)))) {
         unlink(loadPath);
         rmdir(loadDir);
-        snprintf((*hot).last_error, sizeof((*hot).last_error), "checksum mismatch: %s", name);
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error), "checksum mismatch: %s", name);
         return HOT_ERROR_ABI_MISMATCH;
     }
 
@@ -154,15 +186,15 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
     unlink(loadPath);
     rmdir(loadDir);
     if (!handle) {
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "dlopen(%s) failed: %s", loadPath, dlerror());
         return HOT_ERROR_DLOPEN_FAILED;
     }
 
-    const u64 *abi = (*hot).coldCount ? dlsym(handle, "Hot_cold_abi") : nullptr;
-    if ((*hot).coldCount && (abi == nullptr || *abi != HOT_COLD_ABI_VERSION)) {
+    const u64 *abi = coldCount ? dlsym(handle, "Hot_cold_abi") : nullptr;
+    if (coldCount && (abi == nullptr || *abi != HOT_COLD_ABI_VERSION)) {
         dlclose(handle);
-        snprintf((*hot).last_error, sizeof((*hot).last_error), "cold ABI mismatch: %s", name);
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error), "cold ABI mismatch: %s", name);
         return HOT_ERROR_ABI_MISMATCH;
     }
 
@@ -170,7 +202,7 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
     TrampolinesFn get_trampolines = (TrampolinesFn) dlsym(handle, "Hot_getExports");
     if (!get_trampolines) {
         dlclose(handle);
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "dlsym(Hot_getExports) on %s failed: %s", path, dlerror());
         return HOT_ERROR_DLSYM_FAILED;
     }
@@ -191,28 +223,30 @@ HotResult HotStagedSection_admit(HotModule *hot, const char *libDir,
     HotModuleInternal *mod = HotModuleInternal_adopt(hot, mod_name);
     if (!mod) {
         dlclose(handle);
-        snprintf((*hot).last_error, sizeof((*hot).last_error),
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error),
                  "Too many modules (limit %d reached)", HOT_MAX_MODULES);
         return HOT_ERROR_OUT_OF_MEMORY;
     }
 
-    (*out).mod = mod;
-    strncpy((*out).path, path, HOT_PATH_LEN - 1);
-    (*out).path[HOT_PATH_LEN - 1] = '\0';
-    (*out).handle = handle;
-    (*out).trampolines = get_trampolines(&(*out).trampolineCount);
+    HotStagedSection_setMod(out, mod);
+    char *outPath = HotStagedSection_pathMut(out);
+    strncpy(outPath, path, HOT_PATH_LEN - 1);
+    outPath[HOT_PATH_LEN - 1] = '\0';
+    HotStagedSection_setHandle(out, handle);
+    HotStagedSection_setTrampolines(out, get_trampolines(HotStagedSection_trampolineCountMut(out)));
 
     // Every exported row must name a real function. A section that exports an
     // empty or half-filled table is refused before anything is adopted.
-    const struct { const char *name; any fn; } *exports = (*out).trampolines;
-    bool valid = exports != nullptr && (*out).trampolineCount > 0;
-    for (u32 k = 0; valid && k < (*out).trampolineCount; ++k)
+    const struct { const char *name; any fn; } *exports = HotStagedSection_trampolines(out);
+    u32 tcount = HotStagedSection_trampolineCount(out);
+    bool valid = exports != nullptr && tcount > 0;
+    for (u32 k = 0; valid && k < tcount; ++k)
         valid = exports[k].name != nullptr && exports[k].fn != nullptr &&
                 exports[k].name[0] != '\0' &&
                 strnlen(exports[k].name, HOT_MANIFEST_MAX_NAME) < HOT_MANIFEST_MAX_NAME;
     if (!valid) {
         dlclose(handle);
-        snprintf((*hot).last_error, sizeof((*hot).last_error), "invalid export table: %s", name);
+        snprintf(HotModule_lastErrorMut(hot), sizeof(((HotModule) {0}).last_error), "invalid export table: %s", name);
         return HOT_ERROR_ABI_MISMATCH;
     }
 

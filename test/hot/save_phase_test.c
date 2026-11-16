@@ -44,9 +44,14 @@ bool Hot_save(any buf, bytes cap, bytes *out) {
     return true;
 }
 
+;;GETTER
+static inline time_t Timespec_tvSec(const struct timespec *ts) { return (*ts).tv_sec; }
+;;GETTER
+static inline long Timespec_tvNsec(const struct timespec *ts) { return (*ts).tv_nsec; }
+
 static i64 elapsedMs(const struct timespec *from, const struct timespec *to) {
-    return ((*to).tv_sec - (*from).tv_sec) * 1000L
-         + ((*to).tv_nsec - (*from).tv_nsec) / 1000000L;
+    return (Timespec_tvSec(to) - Timespec_tvSec(from)) * 1000L
+         + (Timespec_tvNsec(to) - Timespec_tvNsec(from)) / 1000000L;
 }
 
 /** Bounded wait for a phase (the Bounded Wait Law); false on timeout. */
@@ -64,30 +69,46 @@ static bool waitPhase(HotModule *hot, HotSavePhase want, i64 timeoutMs) {
     }
 }
 
+;;GETTER
+static inline pthread_mutex_t *HotModule_saveLockMut(HotModule *hot) { return &(*hot).saveLock; }
+;;GETTER
+static inline pthread_cond_t *HotModule_saveCondMut(HotModule *hot) { return &(*hot).saveCond; }
+;;GETTER
+static inline HotModuleInternal *HotModule_moduleAtMut(HotModule *hot, u32 i) { return &(*hot).modules[i]; }
+;;SETTER
+static inline fn HotModule_setModuleCount(HotModule *hot, u32 count) { (*hot).module_count = count; }
+;;GETTER
+static inline char *HotModuleInternal_nameMut(HotModuleInternal *mod) { return (*mod).name; }
+;;SETTER
+static inline fn HotModuleInternal_setHandle(HotModuleInternal *mod, any handle) { (*mod).handle = handle; }
+;;SETTER
+static inline fn HotModuleInternal_setLoaded(HotModuleInternal *mod, bool loaded) { (*mod).loaded = loaded; }
+
 /** A zeroed HotModule resolved against this binary's exported Hot_save. */
 static bool modulePrepare(HotModule *hot, any image) {
     memset(hot, 0, sizeof(*hot));
-    if (pthread_mutex_init(&(*hot).saveLock, nullptr) != 0)
+    if (pthread_mutex_init(HotModule_saveLockMut(hot), nullptr) != 0)
         return false;
-    if (pthread_cond_init(&(*hot).saveCond, nullptr) != 0) {
-        pthread_mutex_destroy(&(*hot).saveLock);
+    if (pthread_cond_init(HotModule_saveCondMut(hot), nullptr) != 0) {
+        pthread_mutex_destroy(HotModule_saveLockMut(hot));
         return false;
     }
     if (dlsym(image, "Hot_save") == nullptr) {
-        pthread_cond_destroy(&(*hot).saveCond);
-        pthread_mutex_destroy(&(*hot).saveLock);
+        pthread_cond_destroy(HotModule_saveCondMut(hot));
+        pthread_mutex_destroy(HotModule_saveLockMut(hot));
         return false;
     }
-    strncpy((*hot).modules[0].name, "probe", HOT_MANIFEST_MAX_NAME - 1);
-    (*hot).modules[0].handle = image;
-    (*hot).modules[0].loaded = true;
-    (*hot).module_count = 1;
+    HotModuleInternal *slot = HotModule_moduleAtMut(hot, 0);
+    strncpy(HotModuleInternal_nameMut(slot), "probe", HOT_MANIFEST_MAX_NAME - 1);
+    HotModuleInternal_setHandle(slot, image);
+    HotModuleInternal_setLoaded(slot, true);
+    HotModule_setModuleCount(hot, 1);
     return true;
 }
 
 static fn moduleRelease(HotModule *hot) {
-    pthread_cond_destroy(&(*hot).saveCond);
-    pthread_mutex_destroy(&(*hot).saveLock);
+    pthread_cond_destroy(HotModule_saveCondMut(hot));
+    pthread_mutex_destroy(HotModule_saveLockMut(hot));
 }
 
 i32 main() {

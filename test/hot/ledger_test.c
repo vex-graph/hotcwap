@@ -38,6 +38,9 @@ static i32 s_failures = 0;
         }                                                                       \
     } while (0)
 
+;;GETTER
+static inline const char *Dirent_d_name(const struct dirent *ent) { return (*ent).d_name; }
+
 /** Removes a ledger test directory and reports whether cleanup succeeded. */
 static bool rmtree(const char *path) {
     DIR *dir = opendir(path);
@@ -45,10 +48,11 @@ static bool rmtree(const char *path) {
         return false;
     struct dirent *ent;
     while ((ent = readdir(dir)) != nullptr) {
-        if (strcmp((*ent).d_name, ".") == 0 || strcmp((*ent).d_name, "..") == 0)
+        const char *dname = Dirent_d_name(ent);
+        if (strcmp(dname, ".") == 0 || strcmp(dname, "..") == 0)
             continue;
         char child[512];
-        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, (*ent).d_name);
+        i32 clen = snprintf(child, sizeof(child), "%s/%s", path, dname);
         if (clen < 0 || (bytes) clen >= sizeof(child)) {
             closedir(dir);
             return false;

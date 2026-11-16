@@ -41,15 +41,20 @@ static fn digest(const char *source, u8 *dest) {
     Crypto_sha256Final(&hash, dest);
 }
 
+;;GETTER
+static inline const char *HotSectionDigest_filename(const HotSectionDigest *item) { return (*item).filename; }
+;;GETTER
+static inline u8 *HotSectionDigest_sha256Mut(HotSectionDigest *item) { return (*item).sha256; }
+
 static fn prepare(const char *base, const char *version, const char *payload, HotSectionDigest *specs) {
     for (bytes i = 0; i < 2; ++i) {
         HotSectionDigest *item = &specs[i];
         char dir[1024], source[1024], dest[1024];
         path(base, version, dir);
-        path(dir, (*item).filename, source);
-        path(payload, (*item).filename, dest);
+        path(dir, HotSectionDigest_filename(item), source);
+        path(payload, HotSectionDigest_filename(item), dest);
         copy(source, dest);
-        digest(source, (*item).sha256);
+        digest(source, HotSectionDigest_sha256Mut(item));
     }
 }
 

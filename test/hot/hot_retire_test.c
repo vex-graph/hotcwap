@@ -29,12 +29,19 @@ static i32 g_failures = 0;
         }                                                                  \
     } while (0)
 
+;;GETTER
+static inline const HotRetiredHandle *HotRetireRing_slotAt(const HotRetireRing *ring, bytes i) {
+    return &(*ring).slots[i];
+}
+;;GETTER
+static inline any HotRetiredHandle_handle(const HotRetiredHandle *slot) { return (*slot).handle; }
+
 /** Counts occupied entries retained in the retirement ring. */
 static i32 parkedCount(const HotRetireRing *ring) {
     i32 n = 0;
     for (bytes i = 0; i < HOT_RETIRED_MAX; i++) {
-        const HotRetiredHandle *slot = &(*ring).slots[i];
-        if ((*slot).handle)
+        const HotRetiredHandle *slot = HotRetireRing_slotAt(ring, i);
+        if (HotRetiredHandle_handle(slot))
             n++;
     }
     return n;

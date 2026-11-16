@@ -41,24 +41,60 @@
  * setter can forge ownership. Cold projections expose metadata, not code contents.
  * ============================================================================ */
 
+;;GETTER
+static inline HotTrampoline *HotTrampolineTable_rows(const HotTrampolineTable *self) { return (*self).rows; }
+;;SETTER
+static inline fn HotTrampolineTable_setRows(HotTrampolineTable *self, HotTrampoline *rows) { (*self).rows = rows; }
+;;GETTER
+static inline u32 HotTrampolineTable_capacity(const HotTrampolineTable *self) { return (*self).capacity; }
+;;SETTER
+static inline fn HotTrampolineTable_setCapacity(HotTrampolineTable *self, u32 capacity) { (*self).capacity = capacity; }
+;;GETTER
+static inline u32 HotTrampolineTable_countLoad(const HotTrampolineTable *self) { return atomic_load(&(*self).count); }
+;;GETTER
+static inline fn HotTrampolineTable_storeCount(HotTrampolineTable *self, u32 count) { atomic_store(&(*self).count, count); }
+;;GETTER
+static inline u64 HotTrampolineTable_refusals(const HotTrampolineTable *self) { return (*self).refusals; }
+;;SETTER
+static inline fn HotTrampolineTable_setRefusals(HotTrampolineTable *self, u64 refusals) { (*self).refusals = refusals; }
+;;GETTER
+static inline HotTrampoline *HotTrampolineTable_rowAtMut(const HotTrampolineTable *self, u32 i) { return &(*self).rows[i]; }
+;;GETTER
+static inline char *HotTrampoline_nameMut(HotTrampoline *row) { return (*row).name; }
+;;GETTER
+static inline any HotTrampoline_ptrLoad(const HotTrampoline *row) { return atomic_load(&(*row).ptr); }
+;;GETTER
+static inline fn HotTrampoline_initPtr(HotTrampoline *row, any ptr) { atomic_init(&(*row).ptr, ptr); }
+;;GETTER
+static inline fn HotTrampoline_storePtr(HotTrampoline *row, any ptr) { atomic_store(&(*row).ptr, ptr); }
+;;GETTER
+static inline any HotTrampoline_fallbackLoad(const HotTrampoline *row) { return atomic_load(&(*row).fallback_ptr); }
+;;GETTER
+static inline fn HotTrampoline_initFallback(HotTrampoline *row, any ptr) { atomic_init(&(*row).fallback_ptr, ptr); }
+;;GETTER
+static inline fn HotTrampoline_storeFallback(HotTrampoline *row, any ptr) { atomic_store(&(*row).fallback_ptr, ptr); }
+
 HotTrampolineTable HotTrampolineTable_0() {
     return (HotTrampolineTable) {0};
 }
 
 static bool refuse(HotTrampolineTable *self, u32 quantity) {
-    if ((*self).refusals++ == 0)
-        THROW("HotTrampolineTable exhausted: requested %u rows, backing %u, index bound %d", quantity, (*self).capacity, INT_MAX);
+    u64 prev = HotTrampolineTable_refusals(self);
+    HotTrampolineTable_setRefusals(self, prev + 1);
+    if (prev == 0)
+        THROW("HotTrampolineTable exhausted: requested %u rows, backing %u, index bound %d", quantity, HotTrampolineTable_capacity(self), INT_MAX);
     return false;
 }
 
 bool HotTrampolineTable_reserve(HotTrampolineTable *self, u32 capacity) {
     if (self == nullptr)
         return false;
-    if (capacity <= (*self).capacity)
+    u32 curCap = HotTrampolineTable_capacity(self);
+    if (capacity <= curCap)
         return true;
     if (capacity > INT_MAX || SIZE_MAX / capacity < sizeof(HotTrampoline))
         return refuse(self, capacity);
-    u32 extent = (*self).capacity ? (*self).capacity : HOT_TRAMPOLINE_CAPACITY_DEFAULT;
+    u32 extent = curCap ? curCap : HOT_TRAMPOLINE_CAPACITY_DEFAULT;
     while (extent < capacity) {
         if (extent > (u32) INT_MAX / 2) {
             extent = capacity;
@@ -69,27 +105,27 @@ bool HotTrampolineTable_reserve(HotTrampolineTable *self, u32 capacity) {
     HotTrampoline *next = calloc(extent, sizeof(*next));
     if (next == nullptr)
         return refuse(self, capacity);
-    u32 count = atomic_load(&(*self).count);
+    u32 count = HotTrampolineTable_countLoad(self);
     for (u32 i = 0; i < count; ++i) {
-        HotTrampoline *old = &(*self).rows[i];
+        HotTrampoline *old = HotTrampolineTable_rowAtMut(self, i);
         HotTrampoline *row = &next[i];
-        memcpy((*row).name, (*old).name, sizeof((*row).name));
-        atomic_init(&(*row).ptr, atomic_load(&(*old).ptr));
-        atomic_init(&(*row).fallback_ptr, atomic_load(&(*old).fallback_ptr));
+        memcpy(HotTrampoline_nameMut(row), HotTrampoline_nameMut(old), sizeof(((HotTrampoline) {0}).name));
+        HotTrampoline_initPtr(row, HotTrampoline_ptrLoad(old));
+        HotTrampoline_initFallback(row, HotTrampoline_fallbackLoad(old));
     }
-    free((*self).rows);
-    (*self).rows = next;
-    (*self).capacity = extent;
+    free(HotTrampolineTable_rows(self));
+    HotTrampolineTable_setRows(self, next);
+    HotTrampolineTable_setCapacity(self, extent);
     return true;
 }
 
 i32 HotTrampolineTable_find(HotTrampolineTable *self, const char *name) {
     if (self == nullptr || name == nullptr)
         return -1;
-    u32 count = atomic_load(&(*self).count);
+    u32 count = HotTrampolineTable_countLoad(self);
     for (u32 i = 0; i < count; ++i) {
-        HotTrampoline *row = &(*self).rows[i];
-        if (strcmp((*row).name, name) == 0)
+        HotTrampoline *row = HotTrampolineTable_rowAtMut(self, i);
+        if (strcmp(HotTrampoline_nameMut(row), name) == 0)
             return (i32) i;
     }
     return -1;
@@ -104,44 +140,44 @@ i32 HotTrampolineTable_register(HotTrampolineTable *self, const char *name) {
     i32 found = HotTrampolineTable_find(self, name);
     if (found >= 0)
         return found;
-    u32 count = atomic_load(&(*self).count);
+    u32 count = HotTrampolineTable_countLoad(self);
     if (!HotTrampolineTable_reserve(self, count + 1))
         return -1;
-    HotTrampoline *row = &(*self).rows[count];
-    strcpy((*row).name, name);
-    atomic_init(&(*row).ptr, nullptr);
-    atomic_init(&(*row).fallback_ptr, nullptr);
-    atomic_store(&(*self).count, count + 1);
+    HotTrampoline *row = HotTrampolineTable_rowAtMut(self, count);
+    strcpy(HotTrampoline_nameMut(row), name);
+    HotTrampoline_initPtr(row, nullptr);
+    HotTrampoline_initFallback(row, nullptr);
+    HotTrampolineTable_storeCount(self, count + 1);
     return (i32) count;
 }
 
 fn HotTrampolineTable_set(HotTrampolineTable *self, i32 idx, any ptr) {
-    if (self == nullptr || idx < 0 || (u32) idx >= atomic_load(&(*self).count))
+    if (self == nullptr || idx < 0 || (u32) idx >= HotTrampolineTable_countLoad(self))
         return;
-    HotTrampoline *row = &(*self).rows[idx];
-    any old = atomic_load(&(*row).ptr);
+    HotTrampoline *row = HotTrampolineTable_rowAtMut(self, (u32) idx);
+    any old = HotTrampoline_ptrLoad(row);
     if (old != nullptr && old != ptr)
-        atomic_store(&(*row).fallback_ptr, old);
-    atomic_store(&(*row).ptr, ptr);
+        HotTrampoline_storeFallback(row, old);
+    HotTrampoline_storePtr(row, ptr);
 }
 
 any HotTrampolineTable_get(HotTrampolineTable *self, i32 idx) {
-    if (self == nullptr || idx < 0 || (u32) idx >= atomic_load(&(*self).count))
+    if (self == nullptr || idx < 0 || (u32) idx >= HotTrampolineTable_countLoad(self))
         return nullptr;
-    HotTrampoline *row = &(*self).rows[idx];
-    any ptr = atomic_load(&(*row).ptr);
-    return ptr != nullptr ? ptr : atomic_load(&(*row).fallback_ptr);
+    HotTrampoline *row = HotTrampolineTable_rowAtMut(self, (u32) idx);
+    any ptr = HotTrampoline_ptrLoad(row);
+    return ptr != nullptr ? ptr : HotTrampoline_fallbackLoad(row);
 }
 
 fn HotTrampolineTable_free(HotTrampolineTable *self) {
     if (self == nullptr)
         return;
-    free((*self).rows);
+    free(HotTrampolineTable_rows(self));
     *self = HotTrampolineTable_0();
 }
 
 u64 HotTrampolineTable_exhaustionCount(const HotTrampolineTable *self) {
-    return self == nullptr ? 0 : (*self).refusals;
+    return self == nullptr ? 0 : HotTrampolineTable_refusals(self);
 }
 
 static bool project(const HotTrampolineTable *self, bool structure, char *dest, bytes cap, bool *outTruncated) {
@@ -153,9 +189,11 @@ static bool project(const HotTrampolineTable *self, bool structure, char *dest, 
             n = snprintf(dest, cap, "nullptr");
         else if (structure)
             n = snprintf(dest, cap, "HotTrampolineTable{rows=%p,capacity=%u,count=%u,refusals=%llu}",
-                         (any) (*self).rows, (*self).capacity, atomic_load(&(*self).count), (u64) (*self).refusals);
+                         (any) HotTrampolineTable_rows(self), HotTrampolineTable_capacity(self),
+                         HotTrampolineTable_countLoad(self), (u64) HotTrampolineTable_refusals(self));
         else
-            n = snprintf(dest, cap, "symbols=%u capacity=%u", atomic_load(&(*self).count), (*self).capacity);
+            n = snprintf(dest, cap, "symbols=%u capacity=%u",
+                         HotTrampolineTable_countLoad(self), HotTrampolineTable_capacity(self));
     }
     if (n < 0 || (bytes) n >= cap) {
         if (outTruncated != nullptr)

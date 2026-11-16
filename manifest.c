@@ -171,6 +171,35 @@ typedef struct JsonIn {
     const char *end;
 } JsonIn;
 
+;;GETTER
+static inline const char *Dirent_d_name(const struct dirent *ent) { return (*ent).d_name; }
+;;GETTER
+static inline const char *ManifestLibrary_name(const ManifestLibrary *lib) { return (*lib).name; }
+;;GETTER
+static inline char *ManifestLibrary_nameMut(ManifestLibrary *lib) { return (*lib).name; }
+;;GETTER
+static inline u32 ManifestLibrary_sectionCount(const ManifestLibrary *lib) { return (*lib).sectionCount; }
+;;SETTER
+static inline fn ManifestLibrary_setSectionCount(ManifestLibrary *lib, u32 count) { (*lib).sectionCount = count; }
+;;GETTER
+static inline const char *ManifestLibrary_sectionAt(const ManifestLibrary *lib, u32 i) { return (*lib).sections[i]; }
+;;GETTER
+static inline char *ManifestLibrary_sectionAtMut(ManifestLibrary *lib, u32 i) { return (*lib).sections[i]; }
+;;GETTER
+static inline const char *JsonIn_p(const JsonIn *self) { return (*self).p; }
+;;SETTER
+static inline fn JsonIn_setP(JsonIn *self, const char *p) { (*self).p = p; }
+;;GETTER
+static inline const char *JsonIn_end(const JsonIn *self) { return (*self).end; }
+;;GETTER
+static inline char *ManifestPath_buf(const ManifestPath *self) { return (*self).buf; }
+;;GETTER
+static inline bytes ManifestPath_cap(const ManifestPath *self) { return (*self).cap; }
+;;GETTER
+static inline bytes ManifestPath_lenField(const ManifestPath *self) { return (*self).len; }
+;;SETTER
+static inline fn ManifestPath_setLen(ManifestPath *self, bytes len) { (*self).len = len; }
+
 #define MANIFEST_MAX_SEGMENTS 16
 
 static char g_root[MANIFEST_BUF_CAP];
@@ -481,7 +510,7 @@ static bool copy_tree(const char *srcDir, const char *dstDir, i32 depth) {
     struct dirent *ent;
     bool ok = true;
     while ((ent = readdir(dir)) != nullptr && ok) {
-        const char *name = (*ent).d_name;
+        const char *name = Dirent_d_name(ent);
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
             continue;
         char src[MANIFEST_BUF_CAP];
@@ -537,7 +566,7 @@ static fn remove_ladder_dir(const char *dir) {
     struct dirent *ent;
     char entry[MANIFEST_BUF_CAP];
     while ((ent = readdir(d)) != nullptr) {
-        const char *name = (*ent).d_name;
+        const char *name = Dirent_d_name(ent);
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
             continue;
         snprintf(entry, sizeof(entry), "%s/%s", tomb, name);
@@ -581,8 +610,9 @@ static bool stem_of(const char *file, char *out, bytes cap) {
 }
 
 static bool library_declares(const ManifestLibrary *lib, const char *stem) {
-    for (u32 i = 0; i < (*lib).sectionCount; i++)
-        if (strcmp((*lib).sections[i], stem) == 0)
+    u32 count = ManifestLibrary_sectionCount(lib);
+    for (u32 i = 0; i < count; i++)
+        if (strcmp(ManifestLibrary_sectionAt(lib, i), stem) == 0)
             return true;
     return false;
 }
@@ -601,8 +631,8 @@ static ManifestLibrary *catalog_ensure(const char *name) {
     if (g_libraryCount >= HOT_MANIFEST_MAX_LIBRARIES)
         return nullptr;
     ManifestLibrary *added = &g_libraries[g_libraryCount];
-    snprintf((*added).name, sizeof((*added).name), "%s", name);
-    (*added).sectionCount = 0;
+    snprintf(ManifestLibrary_nameMut(added), sizeof(((ManifestLibrary) {0}).name), "%s", name);
+    ManifestLibrary_setSectionCount(added, 0);
     g_libraryCount++;
     return added;
 }
@@ -610,21 +640,25 @@ static ManifestLibrary *catalog_ensure(const char *name) {
 // --- minimal bounded JSON reader (self-contained, fail-closed) --------------
 
 static bool json_ws(JsonIn *self) {
-    while ((*self).p < (*self).end) {
-        char c = *(*self).p;
+    const char *p = JsonIn_p(self);
+    const char *end = JsonIn_end(self);
+    while (p < end) {
+        char c = *p;
         if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
-            (*self).p++;
+            p++;
         else
             break;
     }
-    return (*self).p < (*self).end;
+    JsonIn_setP(self, p);
+    return p < end;
 }
 
 static bool json_eat(JsonIn *self, char expect) {
     if (!json_ws(self))
         return false;
-    if (*(*self).p == expect) {
-        (*self).p++;
+    const char *p = JsonIn_p(self);
+    if (*p == expect) {
+        JsonIn_setP(self, p + 1);
         return true;
     }
     return false;
@@ -633,51 +667,62 @@ static bool json_eat(JsonIn *self, char expect) {
 static bool json_peek(JsonIn *self, char *c) {
     if (!json_ws(self))
         return false;
-    *c = *(*self).p;
+    *c = *JsonIn_p(self);
     return true;
 }
 
 static bool json_string(JsonIn *self, char *out, bytes cap) {
-    if (!json_ws(self) || *(*self).p != '"')
+    if (!json_ws(self) || *JsonIn_p(self) != '"')
         return false;
-    (*self).p++;
+    const char *p = JsonIn_p(self) + 1;
+    const char *end = JsonIn_end(self);
     bytes n = 0;
-    while ((*self).p < (*self).end && *(*self).p != '"') {
-        char c = *(*self).p;
+    while (p < end && *p != '"') {
+        char c = *p;
         if (c == '\\') {
-            (*self).p++;
-            if ((*self).p >= (*self).end)
+            p++;
+            if (p >= end) {
+                JsonIn_setP(self, p);
                 return false;
-            c = *(*self).p;
+            }
+            c = *p;
         }
-        if (n + 1 >= cap)
+        if (n + 1 >= cap) {
+            JsonIn_setP(self, p);
             return false;
+        }
         out[n++] = c;
-        (*self).p++;
+        p++;
     }
-    if ((*self).p >= (*self).end)
+    if (p >= end) {
+        JsonIn_setP(self, p);
         return false;
-    (*self).p++;
+    }
+    p++;
+    JsonIn_setP(self, p);
     out[n] = '\0';
     return true;
 }
 
 static bool json_skip_string(JsonIn *self) {
-    if (!json_ws(self) || *(*self).p != '"')
+    if (!json_ws(self) || *JsonIn_p(self) != '"')
         return false;
-    (*self).p++;
-    while ((*self).p < (*self).end) {
-        char c = *(*self).p;
+    const char *p = JsonIn_p(self) + 1;
+    const char *end = JsonIn_end(self);
+    while (p < end) {
+        char c = *p;
         if (c == '\\') {
-            (*self).p += 2;
+            p += 2;
             continue;
         }
         if (c == '"') {
-            (*self).p++;
+            p++;
+            JsonIn_setP(self, p);
             return true;
         }
-        (*self).p++;
+        p++;
     }
+    JsonIn_setP(self, p);
     return false;
 }
 
@@ -690,7 +735,7 @@ static bool json_skip(JsonIn *self, i32 depth) {
     if (c == '{') {
         if (depth > JSON_DEPTH_MAX)
             return false;
-        (*self).p++;
+        JsonIn_setP(self, JsonIn_p(self) + 1);
         if (json_eat(self, '}'))
             return true;
         do {
@@ -706,7 +751,7 @@ static bool json_skip(JsonIn *self, i32 depth) {
     if (c == '[') {
         if (depth > JSON_DEPTH_MAX)
             return false;
-        (*self).p++;
+        JsonIn_setP(self, JsonIn_p(self) + 1);
         if (json_eat(self, ']'))
             return true;
         do {
@@ -715,12 +760,17 @@ static bool json_skip(JsonIn *self, i32 depth) {
         } while (json_eat(self, ','));
         return json_eat(self, ']');
     }
-    while ((*self).p < (*self).end) {
-        char ch = *(*self).p;
-        if (ch == ',' || ch == ']' || ch == '}')
+    const char *p = JsonIn_p(self);
+    const char *end = JsonIn_end(self);
+    while (p < end) {
+        char ch = *p;
+        if (ch == ',' || ch == ']' || ch == '}') {
+            JsonIn_setP(self, p);
             return true;
-        (*self).p++;
+        }
+        p++;
     }
+    JsonIn_setP(self, p);
     return false;
 }
 
@@ -729,7 +779,7 @@ static bool catalog_parse_libraries(JsonIn *self) {
         return false;
     char c;
     if (json_peek(self, &c) && c == '}') {
-        (*self).p++;
+        JsonIn_setP(self, JsonIn_p(self) + 1);
         return true;
     }
     while (true) {
@@ -742,24 +792,25 @@ static bool catalog_parse_libraries(JsonIn *self) {
             ManifestLibrary *lib = catalog_ensure(name);
             if (lib == nullptr)
                 return false;
-            (*lib).sectionCount = 0;
+            ManifestLibrary_setSectionCount(lib, 0);
             if (json_peek(self, &c) && c == '[') {
-                (*self).p++;
+                JsonIn_setP(self, JsonIn_p(self) + 1);
                 if (!(json_peek(self, &c) && c == ']')) {
                     do {
                         char sect[HOT_MANIFEST_MAX_NAME];
                         if (!json_string(self, sect, sizeof(sect)))
                             return false;
-                        if ((*lib).sectionCount >= HOT_MANIFEST_MAX_SECTIONS)
+                        u32 scount = ManifestLibrary_sectionCount(lib);
+                        if (scount >= HOT_MANIFEST_MAX_SECTIONS)
                             return false;
-                        snprintf((*lib).sections[(*lib).sectionCount],
+                        snprintf(ManifestLibrary_sectionAtMut(lib, scount),
                                  HOT_MANIFEST_MAX_NAME, "%s", sect);
-                        (*lib).sectionCount++;
+                        ManifestLibrary_setSectionCount(lib, scount + 1);
                     } while (json_eat(self, ','));
                     if (!json_eat(self, ']'))
                         return false;
                 } else {
-                    (*self).p++;
+                    JsonIn_setP(self, JsonIn_p(self) + 1);
                 }
             } else if (!json_skip(self, 0)) {
                 return false;
@@ -780,7 +831,7 @@ static bool catalog_apply(JsonIn *self) {
     char c;
     while (true) {
         if (json_peek(self, &c) && c == '}') {
-            (*self).p++;
+            JsonIn_setP(self, JsonIn_p(self) + 1);
             return true;
         }
         char key[HOT_MANIFEST_MAX_NAME];
@@ -837,14 +888,15 @@ static bool catalog_write_json() {
     for (u32 i = 0; i < g_libraryCount; i++) {
         ManifestLibrary *lib = &g_libraries[i];
         n = snprintf(json + used, sizeof(json) - used,
-                     "    \"%s\": [", (*lib).name);
+                     "    \"%s\": [", ManifestLibrary_name(lib));
         if (n < 0 || (bytes) n >= sizeof(json) - used)
             return false;
         used += (bytes) n;
-        for (u32 k = 0; k < (*lib).sectionCount; k++) {
+        u32 scount = ManifestLibrary_sectionCount(lib);
+        for (u32 k = 0; k < scount; k++) {
             const char *sep = k == 0 ? "\"" : ", \"";
             n = snprintf(json + used, sizeof(json) - used,
-                         "%s%s\"", sep, (*lib).sections[k]);
+                         "%s%s\"", sep, ManifestLibrary_sectionAt(lib, k));
             if (n < 0 || (bytes) n >= sizeof(json) - used)
                 return false;
             used += (bytes) n;
@@ -918,7 +970,7 @@ static bool stage_has_content(const char *dir) {
     struct dirent *ent;
     bool has = false;
     while ((ent = readdir(d)) != nullptr) {
-        const char *name = (*ent).d_name;
+        const char *name = Dirent_d_name(ent);
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
             continue;
         has = true;
@@ -1224,7 +1276,7 @@ static bool slot_readme_append(ManifestLadder slot, const char *library,
                "- sections: %u\n"
                "- at: %s\n\n",
             library, phase, (u64) generation,
-            lib != nullptr ? (*lib).sectionCount : 0u, stamp);
+            lib != nullptr ? ManifestLibrary_sectionCount(lib) : 0u, stamp);
     fclose(f);
     return true;
 }
@@ -1252,26 +1304,27 @@ bool MANIFEST_REFLECT(const char *library, const char *sourceDir) {
         return false;
 
     // Seed sections from the bundled payload's top-level stems.
-    (*lib).sectionCount = 0;
+    ManifestLibrary_setSectionCount(lib, 0);
     DIR *dir = opendir(sourceDir);
     if (!dir)
         return false;
     struct dirent *ent;
     while ((ent = readdir(dir)) != nullptr) {
-        const char *name = (*ent).d_name;
+        const char *name = Dirent_d_name(ent);
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
             continue;
         char stem[HOT_MANIFEST_MAX_NAME];
         if (!stem_of(name, stem, sizeof(stem)))
             continue;
-        if ((*lib).sectionCount >= HOT_MANIFEST_MAX_SECTIONS) {
+        u32 scount = ManifestLibrary_sectionCount(lib);
+        if (scount >= HOT_MANIFEST_MAX_SECTIONS) {
             closedir(dir);
             return false;
         }
         if (!library_declares(lib, stem)) {
-            snprintf((*lib).sections[(*lib).sectionCount],
+            snprintf(ManifestLibrary_sectionAtMut(lib, scount),
                      HOT_MANIFEST_MAX_NAME, "%s", stem);
-            (*lib).sectionCount++;
+            ManifestLibrary_setSectionCount(lib, scount + 1);
         }
     }
     closedir(dir);
@@ -1320,7 +1373,7 @@ bool MANIFEST_UPDATE(const char *library, const char *payloadDir) {
     if (!g_mounted || !valid_name(library) || payloadDir == nullptr)
         return false;
     ManifestLibrary *lib = catalog_lookup(library);
-    if (lib == nullptr || (*lib).sectionCount == 0)
+    if (lib == nullptr || ManifestLibrary_sectionCount(lib) == 0)
         return false; // undeclared library / no declared sections → closed
 
     // Fail-closed: every top-level payload entry must be a DECLARED section.
@@ -1330,7 +1383,7 @@ bool MANIFEST_UPDATE(const char *library, const char *payloadDir) {
     struct dirent *ent;
     bool ok = true;
     while ((ent = readdir(dir)) != nullptr) {
-        const char *name = (*ent).d_name;
+        const char *name = Dirent_d_name(ent);
         if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
             continue;
         char stem[HOT_MANIFEST_MAX_NAME];
@@ -1428,7 +1481,7 @@ u32 MANIFEST_SECTION_COUNT(const char *library) {
     if (!g_mounted || !valid_name(library))
         return 0;
     ManifestLibrary *lib = catalog_lookup(library);
-    return lib == nullptr ? 0 : (*lib).sectionCount;
+    return lib == nullptr ? 0 : ManifestLibrary_sectionCount(lib);
 }
 
 bool MANIFEST_REVERT_LIBRARY(const char *library, u64 generation) {
@@ -1539,33 +1592,42 @@ u64 MANIFEST_GENERATION(const char *library) {
 
 /** Sets the builder to a resolved root path without creating the root. */
 bool ManifestPath_begin(ManifestPath *self, const char *root) {
-    if (self == nullptr || (*self).buf == nullptr || (*self).cap == 0)
+    if (self == nullptr)
+        return false;
+    char *buf = ManifestPath_buf(self);
+    bytes cap = ManifestPath_cap(self);
+    if (buf == nullptr || cap == 0)
         return false;
     char base[MANIFEST_BUF_CAP];
     if (!resolve_base(base, sizeof(base), root))
         return false;
-    snprintf((*self).buf, (*self).cap, "%s", base);
-    (*self).len = strlen((*self).buf);
+    snprintf(buf, cap, "%s", base);
+    ManifestPath_setLen(self, strlen(buf));
     return true;
 }
 
 /** Appends one path segment and optionally creates the resulting directory. */
 bool ManifestPath_push(ManifestPath *self, const char *segment, bool create) {
-    if (self == nullptr || segment == nullptr || (*self).buf == nullptr)
+    if (self == nullptr || segment == nullptr)
         return false;
+    char *buf = ManifestPath_buf(self);
+    if (buf == nullptr)
+        return false;
+    bytes len = ManifestPath_lenField(self);
     bytes seg_len = strlen(segment);
     // A root that is already "/" must not get a second separator, or every
     // path under it starts "//" (MANIFEST("/", ...) is a legal mount).
-    bytes sep = ((*self).len == 1 && (*self).buf[0] == '/') ? 0u : 1u;
-    bytes need = (*self).len + sep + seg_len + 1;
-    if (need > (*self).cap)
+    bytes sep = (len == 1 && buf[0] == '/') ? 0u : 1u;
+    bytes need = len + sep + seg_len + 1;
+    if (need > ManifestPath_cap(self))
         return false;
     if (sep)
-        (*self).buf[(*self).len] = '/';
-    memcpy((*self).buf + (*self).len + sep, segment, seg_len);
-    (*self).len += sep + seg_len;
-    (*self).buf[(*self).len] = '\0';
-    if (create && !mkdir_p((*self).buf))
+        buf[len] = '/';
+    memcpy(buf + len + sep, segment, seg_len);
+    len += sep + seg_len;
+    ManifestPath_setLen(self, len);
+    buf[len] = '\0';
+    if (create && !mkdir_p(buf))
         return false;
     return true;
 }
@@ -1697,10 +1759,10 @@ bool ManifestPath_manifestJson(char *dest, bytes cap) {
 
 /** Returns the builder's destination path, or nullptr when unavailable. */
 const char *ManifestPath_get(const ManifestPath *self) {
-    return self == nullptr || (*self).buf == nullptr ? nullptr : (*self).buf;
+    return self == nullptr ? nullptr : ManifestPath_buf(self);
 }
 
 /** Returns the builder's current path length, or zero for null self. */
 bytes ManifestPath_len(const ManifestPath *self) {
-    return self == nullptr ? 0 : (*self).len;
+    return self == nullptr ? 0 : ManifestPath_lenField(self);
 }

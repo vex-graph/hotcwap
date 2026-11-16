@@ -38,11 +38,20 @@ typedef struct AppState {
     d64   accumulated;
 } AppState;
 
+;;SETTER
+static inline fn AppState_setMagic(AppState *state, u32 magic) { (*state).magic = magic; }
+;;SETTER
+static inline fn AppState_setSchema(AppState *state, u32 schema) { (*state).schema = schema; }
+;;SETTER
+static inline fn AppState_setFrames(AppState *state, u64 frames) { (*state).frames = frames; }
+;;SETTER
+static inline fn AppState_setAccumulated(AppState *state, d64 accumulated) { (*state).accumulated = accumulated; }
+
 static inline fn AppState_init(AppState *state) {
-    (*state).magic = APP_MAGIC;
-    (*state).schema = APP_SCHEMA;
-    (*state).frames = 0;
-    (*state).accumulated = 0.0;
+    AppState_setMagic(state, APP_MAGIC);
+    AppState_setSchema(state, APP_SCHEMA);
+    AppState_setFrames(state, 0);
+    AppState_setAccumulated(state, 0.0);
 }
 
 static inline bool AppState_save(const AppState *state, any buf, bytes cap, bytes *outLen) {

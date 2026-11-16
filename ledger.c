@@ -51,6 +51,21 @@ struct Ledger {
     LedgerState state;
 };
 
+;;GETTER
+static inline char *Ledger_orgMut(Ledger *ledger) { return (*ledger).org; }
+;;GETTER
+static inline char *Ledger_appMut(Ledger *ledger) { return (*ledger).app; }
+;;GETTER
+static inline const char *Ledger_path(const Ledger *ledger) { return (*ledger).path; }
+;;GETTER
+static inline char *Ledger_pathMut(Ledger *ledger) { return (*ledger).path; }
+;;GETTER
+static inline const char *Ledger_version(const Ledger *ledger) { return (*ledger).version; }
+;;GETTER
+static inline char *Ledger_versionMut(Ledger *ledger) { return (*ledger).version; }
+;;SETTER
+static inline fn Ledger_setState(Ledger *ledger, LedgerState state) { (*ledger).state = state; }
+
 // --- the state directory (per user, outside any install tree) ----------------
 
 static bool state_dir(char *dest, bytes cap) {
@@ -129,18 +144,19 @@ static fn apply_record(Ledger *ledger, const char *record) {
     if (slen == 0 || slen >= 16)
         return;
     if (slen == 9 && strncmp(record, "installed", 9) == 0)
-        (*ledger).state = LEDGER_INSTALLED;
+        Ledger_setState(ledger, LEDGER_INSTALLED);
     else if (slen == 11 && strncmp(record, "uninstalled", 11) == 0)
-        (*ledger).state = LEDGER_UNINSTALLED;
+        Ledger_setState(ledger, LEDGER_UNINSTALLED);
     else
         return;
     const char *ver = nl + 1;
     const char *nl2 = strchr(ver, '\n');
     bytes vlen = nl2 ? (bytes) (nl2 - ver) : strlen(ver);
-    if (vlen >= sizeof((*ledger).version))
-        vlen = sizeof((*ledger).version) - 1;
-    memcpy((*ledger).version, ver, vlen);
-    (*ledger).version[vlen] = '\0';
+    if (vlen >= sizeof(((Ledger) {0}).version))
+        vlen = sizeof(((Ledger) {0}).version) - 1;
+    char *lver = Ledger_versionMut(ledger);
+    memcpy(lver, ver, vlen);
+    lver[vlen] = '\0';
 }
 
 /** Opens or loads the machine-scoped record for the organization/application pair. */
@@ -150,16 +166,16 @@ Ledger *Ledger_open(const char *org, const char *app) {
     Ledger *ledger = calloc(1, sizeof(*ledger));
     if (ledger == nullptr)
         return nullptr;
-    snprintf((*ledger).org, sizeof((*ledger).org), "%s", org);
-    snprintf((*ledger).app, sizeof((*ledger).app), "%s", app);
-    (*ledger).state = LEDGER_ABSENT;
-    (*ledger).version[0] = '\0';
-    if (!record_path((*ledger).path, sizeof((*ledger).path), org, app)) {
+    snprintf(Ledger_orgMut(ledger), sizeof(((Ledger) {0}).org), "%s", org);
+    snprintf(Ledger_appMut(ledger), sizeof(((Ledger) {0}).app), "%s", app);
+    Ledger_setState(ledger, LEDGER_ABSENT);
+    Ledger_versionMut(ledger)[0] = '\0';
+    if (!record_path(Ledger_pathMut(ledger), sizeof(((Ledger) {0}).path), org, app)) {
         free(ledger);
         return nullptr;
     }
 
-    FILE *f = fopen((*ledger).path, "rb");
+    FILE *f = fopen(Ledger_path(ledger), "rb");
     if (f != nullptr) {
         char buf[256];
         bytes n = fread(buf, 1, sizeof(buf) - 1, f);
@@ -185,15 +201,15 @@ static bool write_state(Ledger *ledger, const char *state, const char *version) 
     i32 n = snprintf(record, sizeof(record), "%s\n%s\n", state, ver);
     if (n < 0 || (bytes) n >= sizeof(record))
         return false;
-    FILE *f = fopen((*ledger).path, "wb");
+    FILE *f = fopen(Ledger_path(ledger), "wb");
     if (f == nullptr)
         return false;
     bool ok = (fwrite(record, 1, (bytes) n, f) == (bytes) n);
     fclose(f);
     if (!ok)
         return false;
-    (*ledger).state = (strcmp(state, "installed") == 0) ? LEDGER_INSTALLED : LEDGER_UNINSTALLED;
-    snprintf((*ledger).version, sizeof((*ledger).version), "%s", ver);
+    Ledger_setState(ledger, (strcmp(state, "installed") == 0) ? LEDGER_INSTALLED : LEDGER_UNINSTALLED);
+    snprintf(Ledger_versionMut(ledger), sizeof(((Ledger) {0}).version), "%s", ver);
     return true;
 }
 
@@ -208,17 +224,17 @@ bool Ledger_recordInstall(Ledger *ledger, const char *version) {
 bool Ledger_markUninstalled(Ledger *ledger) {
     if (ledger == nullptr)
         return false;
-    return write_state(ledger, "uninstalled", (*ledger).version);
+    return write_state(ledger, "uninstalled", Ledger_version(ledger));
 }
 
 /** Removes the machine-scoped ledger record for this identity. */
 bool Ledger_forget(Ledger *ledger) {
     if (ledger == nullptr)
         return false;
-    if (remove((*ledger).path) != 0 && errno != ENOENT)
+    if (remove(Ledger_path(ledger)) != 0 && errno != ENOENT)
         return false;
-    (*ledger).state = LEDGER_ABSENT;
-    (*ledger).version[0] = '\0';
+    Ledger_setState(ledger, LEDGER_ABSENT);
+    Ledger_versionMut(ledger)[0] = '\0';
     return true;
 }
 
@@ -229,14 +245,14 @@ LedgerState Ledger_state(const Ledger *ledger) {
 
 /** Reports whether a machine-scoped record exists for the ledger identity. */
 bool Ledger_hasRecord(const Ledger *ledger) {
-    return ledger != nullptr && (*ledger).state != LEDGER_ABSENT;
+    return ledger != nullptr && Ledger_state(ledger) != LEDGER_ABSENT;
 }
 
 /** Copies the last recorded version into the caller's bounded buffer. */
 bool Ledger_lastVersion(const Ledger *ledger, char *dest, bytes cap) {
     if (ledger == nullptr || dest == nullptr || cap == 0)
         return false;
-    snprintf(dest, cap, "%s", (*ledger).version);
+    snprintf(dest, cap, "%s", Ledger_version(ledger));
     return true;
 }
 
