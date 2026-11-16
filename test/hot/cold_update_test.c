@@ -56,7 +56,7 @@ static fn prepare(const char *base, const char *version, const char *payload, Ho
 static i32 value(HotModule *hot, const char *name) {
     HotFn symbol = Hot_getSymbol(hot, name);
     assert(symbol);
-    return ((i32 (*)()) symbol)();
+    return ((i32 (*) ()) symbol)();
 }
 
 i32 main(i32 argc, char **argv) {
@@ -87,8 +87,8 @@ i32 main(i32 argc, char **argv) {
     u32 loaded = 99;
     assert(Hot_updateCold(hot, payload, specs, 2, &loaded) == HOT_OK && loaded == 2);
     assert(value(hot, "one_version") == 1 && value(hot, "two_version") == 1);
-    ((fn (*)(i32)) Hot_getSymbol(hot, "one_set"))(77);
-    ((fn (*)(i32)) Hot_getSymbol(hot, "two_set"))(88);
+    ((fn (*) (i32)) Hot_getSymbol(hot, "one_set"))(77);
+    ((fn (*) (i32)) Hot_getSymbol(hot, "two_set"))(88);
     u64 generation = Hot_getGeneration(hot);
     for (i32 i = 0; i < 20; ++i) {
         prepare(base, i % 2 ? "v1" : "v2", payload, specs);

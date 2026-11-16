@@ -249,12 +249,12 @@ i32 main() {
     CHECK(setFn != nullptr, "hot_behavior_set_phase_bias unresolved (gen 1)");
     CHECK(getFn != nullptr, "hot_behavior_get_phase_bias unresolved (gen 1)");
     if (setFn)
-        ((fn (*)(f32)) setFn)(PHASE_BIAS);
-    f32 bias0 = getFn ? ((f32 (*)()) getFn)() : 0.0f;
+        ((fn (*) (f32)) setFn)(PHASE_BIAS);
+    f32 bias0 = getFn ? ((f32 (*) ()) getFn)() : 0.0f;
     CHECK(bias0 == PHASE_BIAS, "phaseBias not applied in gen 1 (got %f)", bias0);
     HotFn pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "hot_behavior_pulse unresolved (gen 1)");
-    f32 pulse0 = pulseFn ? ((f32 (*)(d64)) pulseFn)(1.0) : 0.0f;
+    f32 pulse0 = pulseFn ? ((f32 (*) (d64)) pulseFn)(1.0) : 0.0f;
 
     // --- 4. Promote generation 2 = the BAD (foreign-magic) build ------------
     CHECK(stage_module(loadBase, HOT_BEHAVIOR_BAD_MODULE), "stage bad module failed");
@@ -278,12 +278,12 @@ i32 main() {
     pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "pulse symbol lost after rollback (old image dead?)");
     if (pulseFn) {
-        f32 p = ((f32 (*)(d64)) pulseFn)(1.0);
+        f32 p = ((f32 (*) (d64)) pulseFn)(1.0);
         CHECK(p == pulse0, "generation-1 pulse changed after rollback (%f != %f)",
               p, pulse0);
     }
     getFn = Hot_getSymbol(hot, "hot_behavior_get_phase_bias");
-    f32 biasBack = getFn ? ((f32 (*)()) getFn)() : 0.0f;
+    f32 biasBack = getFn ? ((f32 (*) ()) getFn)() : 0.0f;
     CHECK(biasBack == PHASE_BIAS,
           "generation-1 phaseBias lost after rollback (got %f, %s)",
           biasBack, Hot_getLastError(hot));
@@ -311,13 +311,13 @@ i32 main() {
           (u64) Hot_getGeneration(hot));
     CHECK(Hot_getGeneration(hot) == 3u, "post-heal generation != 3");
     getFn = Hot_getSymbol(hot, "hot_behavior_get_phase_bias");
-    f32 biasHealed = getFn ? ((f32 (*)()) getFn)() : 0.0f;
+    f32 biasHealed = getFn ? ((f32 (*) ()) getFn)() : 0.0f;
     CHECK(biasHealed == PHASE_BIAS,
           "phaseBias did not survive the heal swap (got %f)", biasHealed);
     pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "pulse symbol lost after heal");
     if (pulseFn) {
-        f32 p = ((f32 (*)(d64)) pulseFn)(1.0);
+        f32 p = ((f32 (*) (d64)) pulseFn)(1.0);
         CHECK(p == pulse0, "pulse changed after heal (%f != %f)", p, pulse0);
     }
     printf("  healed to generation 3, phaseBias %f preserved end-to-end\n",

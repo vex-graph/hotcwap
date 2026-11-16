@@ -248,7 +248,7 @@ i32 main() {
     HotFn pulse = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulse != nullptr, "old code lost after a refused swap");
     if (pulse) {
-        f32 v = ((f32 (*)(d64)) pulse)(1.0);
+        f32 v = ((f32 (*) (d64)) pulse)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "old code returned %f after a refused swap", v);
     }
     printf("  B. garbage section refused; generation stayed 1, old code live\n");

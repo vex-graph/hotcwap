@@ -221,7 +221,7 @@ i32 main() {
     HotFn pulse = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulse != nullptr, "hot_behavior_pulse lost after the overflow run");
     if (pulse) {
-        f32 v = ((f32 (*)(d64)) pulse)(1.0);
+        f32 v = ((f32 (*) (d64)) pulse)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "pulse returned %f after the overflow run", v);
     }
     printf("  %d swaps landed; ring (max 16) never corrupted; module resolves\n", SWAP_COUNT);

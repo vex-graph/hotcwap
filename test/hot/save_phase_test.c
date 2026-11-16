@@ -45,8 +45,8 @@ bool Hot_save(any buf, bytes cap, bytes *out) {
 }
 
 static i64 elapsedMs(const struct timespec *from, const struct timespec *to) {
-    return (to->tv_sec - from->tv_sec) * 1000L
-         + (to->tv_nsec - from->tv_nsec) / 1000000L;
+    return ((*to).tv_sec - (*from).tv_sec) * 1000L
+         + ((*to).tv_nsec - (*from).tv_nsec) / 1000000L;
 }
 
 /** Bounded wait for a phase (the Bounded Wait Law); false on timeout. */

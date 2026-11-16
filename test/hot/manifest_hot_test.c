@@ -226,7 +226,7 @@ i32 main() {
     HotFn pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "hot_behavior_pulse unresolved after first load");
     if (pulseFn) {
-        f32 v = ((f32 (*)(d64)) pulseFn)(1.0);
+        f32 v = ((f32 (*) (d64)) pulseFn)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "pulse(1.0)=%f out of range", v);
         printf("  generation 1 pulse(1.0) = %f\n", v);
     }
@@ -254,7 +254,7 @@ i32 main() {
     pulseFn = Hot_getSymbol(hot, "hot_behavior_pulse");
     CHECK(pulseFn != nullptr, "hot_behavior_pulse unresolved after swap");
     if (pulseFn) {
-        f32 v = ((f32 (*)(d64)) pulseFn)(1.0);
+        f32 v = ((f32 (*) (d64)) pulseFn)(1.0);
         CHECK(v >= 0.0f && v <= 1.0f, "post-swap pulse(1.0)=%f out of range", v);
         printf("  generation 2 pulse(1.0) = %f (state restored)\n", v);
     }
